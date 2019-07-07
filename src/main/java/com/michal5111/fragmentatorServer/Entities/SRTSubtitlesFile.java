@@ -21,7 +21,7 @@ public class SRTSubtitlesFile extends SubtitlesFile {
             int number = 0;
             try {
                 number = Integer.parseInt(numberString.trim().strip());
-            } catch (NumberFormatException e) {
+            } catch (NumberFormatException ignored) {
             }
             line.setNumber(number);
             line.setTimeString(splitString[1].split("\r")[0].trim());
@@ -30,7 +30,7 @@ public class SRTSubtitlesFile extends SubtitlesFile {
 
                 stringBuilder.append(splitString[i].split("\r")[0].trim());
                 if (i != scannedString.length()-1) {
-                    stringBuilder.append("\\n");
+                    stringBuilder.append("<br>");
                 }
             }
             line.setTextLines(stringBuilder.toString());
@@ -41,8 +41,7 @@ public class SRTSubtitlesFile extends SubtitlesFile {
 
     @Override
     public void prepareForConversion() {
-        lines.stream()
-                .forEach(Line::parseTime);
+        lines.forEach(Line::parseTime);
     }
 
 

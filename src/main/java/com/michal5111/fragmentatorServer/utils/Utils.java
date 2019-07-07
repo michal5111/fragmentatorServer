@@ -71,17 +71,18 @@ public class Utils {
             }
             subtitlesFile.setFilteredLines(lineList);
             return true;
-//                    .map(Line::getTextLines)
-//                    .flatMap(Arrays::stream)
-//                    .anyMatch(line -> line.toUpperCase().contains(fraze.toUpperCase()));
         } catch (FileNotFoundException e) {
             e.printStackTrace();
             return false;
         }
     }
 
-    public static String generateSnapshotLink(Movie movie) throws IOException {
+    public static String generateSnapshotLink(Movie movie) throws IOException, InterruptedException {
         Line line = movie.getSubtitles().getFilteredLines().get(0);
+        File file = new File("/home/michal/Obrazy/SpringFragmenterCache/"+(movie.getFileName()+line.getNumber()).hashCode()+".jpg");
+        if (file.exists()) {
+            return (movie.getFileName()+line.getNumber()).hashCode()+".jpg";
+        }
         line.parseTime();
         movie.setExtension(getMovieExtension(Paths.get(movie.getPath())));
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
@@ -89,21 +90,24 @@ public class Utils {
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.command(
                 //"konsole",
-               // "--hold",
+               //"--hold",
                 //"-e",
                 "ffmpeg",
-                "-y",
+                //"-y",
+                "-n",
                 "-ss", timeString,
                 "-i", movie.getPath()+"/"+movie.getFileName()+movie.getExtension(),
+                //"-vf","subtitles="+movie.getSubtitles().getFilename(),
                 //"-vf","subtitles=TEMP.srt",
                 "-frames:v", "1",
-               "/home/michal/Obrazy/SpringFragmenterCache/"+movie.getFileName()+line.getNumber()+".jpg"
+               "/home/michal/Obrazy/SpringFragmenterCache/"+(movie.getFileName()+line.getNumber()).hashCode()+".jpg"
         );
         Process process = processBuilder.start();
-        return movie.getFileName().replace(" ","%20")+line.getNumber();
+        process.waitFor();
+        return (movie.getFileName()+line.getNumber()).hashCode()+".jpg";
     }
 
-    private static String getMovieExtension(Path path) throws IOException {
+    public static String getMovieExtension(Path path) throws IOException {
         Optional<Path> video = Files.walk(path)
                 .filter(Files::isRegularFile)
                 .filter(x -> {
@@ -145,7 +149,7 @@ public class Utils {
                 "-vcodec", "h264",
                 "-preset", "veryslow",
                 //"-vf", "subtitles=TEMP.srt",
-                "/home/michal/Wideo/SpringFragmenterCache/"+movie.getFileName()+line.getNumber()+".mp4"
+                "/home/michal/Wideo/SpringFragmenterCache/"+(movie.getFileName()+line.getNumber()).hashCode()+".mp4"
         );
         Process process = processBuilder.start();
         return movie.getFileName()+line.getNumber();
