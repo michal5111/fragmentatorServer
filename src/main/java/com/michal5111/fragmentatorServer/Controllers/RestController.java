@@ -46,7 +46,7 @@ public class RestController {
     }
 
     @GetMapping(path = "/requestFragment", params = {"fileName","line","timeString","path"})
-    public Flux<ServerSentEvent<String>> requestFragment(@RequestParam String fileName, @RequestParam String line, @RequestParam String timeString, @RequestParam String path) {
+    public Flux<ServerSentEvent<String>> requestFragment(@RequestParam String fileName, @RequestParam String line, @RequestParam String timeString, @RequestParam String path, @RequestParam int lineNumber) throws IOException {
         Movie movie = new Movie();
         movie.setPath(path);
         movie.setFileName(fileName);
@@ -54,6 +54,7 @@ public class RestController {
         Line lineObject = new Line();
         lineObject.setTimeString(timeString);
         lineObject.setTextLines(line);
+        lineObject.setNumber(lineNumber);
         List<Line> lineList = new LinkedList<>();
         lineList.add(lineObject);
         subtitlesFile.setFilteredLines(lineList);
@@ -66,7 +67,7 @@ public class RestController {
             e.printStackTrace();
         }
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
-        LocalTime time = lineObject.getTimeFrom().minusMinutes(1).plusNanos((new Double(lineObject.getStartOffset()*1000000000.0)).longValue());
+        LocalTime time = lineObject.getTimeFrom().minusMinutes(1).plusNanos((Double.valueOf(lineObject.getStartOffset()*1000000000.0)).longValue());
         double to =  lineObject.getTimeTo().getHour()*3600+lineObject.getTimeTo().getMinute()*60+lineObject.getTimeTo().getSecond()+lineObject.getTimeTo().getNano()/1000000000.0+lineObject.getStopOffset()
                 - (lineObject.getTimeFrom().getHour()*3600+lineObject.getTimeFrom().getMinute()*60+lineObject.getTimeFrom().getSecond()+lineObject.getTimeFrom().getNano()/1000000000.0+lineObject.getStartOffset());
         String timeString2 = dateTimeFormatter.format(time);
@@ -84,23 +85,27 @@ public class RestController {
                 "-acodec", "copy",
                 "-vcodec", "h264",
                 "-preset", "veryslow",
-                //"-vf", "subtitles=TEMP.srt",
+                //"-vf", "subtitles="+movie.getPath()+"/"+movie.getFileName()+".srt",
                 "/home/michal/Wideo/SpringFragmenterCache/"+(movie.getFileName()+lineObject.getNumber()).hashCode()+".mp4"
         );
         processBuilder.redirectErrorStream(true);
 
-        return Flux.create(emmiter -> {
-            emmiter.next(ServerSentEvent.<String>builder().event("test").id("1").data("robi się").build());
-            try {
-                Process process = processBuilder.start();
-                final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                reader.lines().forEach(lineString -> emmiter.next(ServerSentEvent.<String>builder().event("lala").id("1").data(lineString).build()));
-                emmiter.next(ServerSentEvent.<String>builder().event("complete").id("2").data((movie.getFileName()+lineObject.getNumber()).hashCode()+".mp4").build());
-                //emmiter.complete();
-            } catch (IOException e) {
-                e.printStackTrace();
-                emmiter.error(e);
-            }
+        Process process = processBuilder.start();
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+        Flux<ServerSentEvent<String>> toEvent = Flux.create(emmiter -> {
+            emmiter.next(ServerSentEvent.<String>builder().event("to").id("2").data(String.valueOf(to)).build());
+            emmiter.complete();
         });
+        Flux<ServerSentEvent<String>> percent = Flux.fromStream(reader.lines())
+//                .filterWhen(s -> Mono.just(s.contains("frame=")),1)
+//                .map(s -> s.substring(s.lastIndexOf("time=")+5,s.lastIndexOf("time=")+16))
+//                .map(s -> String.valueOf(Utils.timeToSeconds(s)*100/to))
+                .doOnNext(System.out::println)
+                .map(s -> ServerSentEvent.builder(s).event("log").data(s).id("1").build());
+        Flux<ServerSentEvent<String>> complete = Flux.create(emmiter -> {
+            emmiter.next(ServerSentEvent.<String>builder().event("complete").id("2").data((movie.getFileName() + lineObject.getNumber()).hashCode() + ".mp4").build());
+            emmiter.complete();
+        });
+        return toEvent.concatWith(percent.concatWith(complete));
     }
 }

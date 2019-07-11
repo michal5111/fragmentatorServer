@@ -13,10 +13,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -37,7 +34,8 @@ public class Utils {
                     .filter(Utils::endsWithSRT)
                     .map(Path::toFile)
                     .map(Utils::createMovieFromPath)
-                    .filter(movie -> filterMovieByFraze(movie, fraze));
+                    .filter(movie -> filterMovieByFraze(movie, fraze))
+                    .sorted(Comparator.comparing(Movie::getFileName));
 
         }
         return Arrays.stream(streams).parallel().flatMap(Function.identity()).collect(Collectors.toList());
@@ -153,5 +151,13 @@ public class Utils {
         );
         Process process = processBuilder.start();
         return movie.getFileName()+line.getNumber();
+    }
+
+    public static double timeToSeconds(String time) {
+        String[] split = time.split(":");
+        double hours = Double.valueOf(split[0]);
+        double minutes = Double.valueOf(split[1]);
+        double seconds = Double.valueOf(split[2]);
+        return hours*3600+minutes*60+seconds;
     }
 }
