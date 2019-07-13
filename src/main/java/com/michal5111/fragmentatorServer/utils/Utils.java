@@ -2,18 +2,17 @@ package com.michal5111.fragmentatorServer.utils;
 
 import com.michal5111.fragmentatorServer.Entities.Line;
 import com.michal5111.fragmentatorServer.Entities.Movie;
-import com.michal5111.fragmentatorServer.Entities.SRTSubtitlesFile;
-import com.michal5111.fragmentatorServer.Entities.SubtitlesFile;
+import com.michal5111.fragmentatorServer.Entities.SRTSubtitles;
+import com.michal5111.fragmentatorServer.Entities.Subtitles;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,11 +33,10 @@ public class Utils {
                     .filter(Utils::endsWithSRT)
                     .map(Path::toFile)
                     .map(Utils::createMovieFromPath)
-                    .filter(movie -> filterMovieByFraze(movie, fraze))
-                    .sorted(Comparator.comparing(Movie::getFileName));
+                    .filter(movie -> filterMovieByFraze(movie, fraze));
 
         }
-        return Arrays.stream(streams).parallel().flatMap(Function.identity()).collect(Collectors.toList());
+        return Arrays.stream(streams).parallel().flatMap(Function.identity()).sorted(Comparator.comparing(Movie::getFileName)).collect(Collectors.toList());
     }
 
 
@@ -48,9 +46,9 @@ public class Utils {
 
     private static Movie createMovieFromPath(File file) {
         Movie movie = new Movie();
-        SubtitlesFile subtitlesFile = new SRTSubtitlesFile();
-        subtitlesFile.setSubtitleFile(file);
-        movie.setSubtitles(subtitlesFile);
+        Subtitles subtitles = new SRTSubtitles();
+        subtitles.setSubtitleFile(file);
+        movie.setSubtitles(subtitles);
         movie.getSubtitles().setFilename(file.getName());
         movie.setFileName(file.getName().substring(0,file.getName().lastIndexOf('.')));
         movie.setPath(file.getPath().substring(0,file.getPath().lastIndexOf('/')));
@@ -59,50 +57,20 @@ public class Utils {
 
     private static boolean filterMovieByFraze(Movie movie, String fraze) {
         try {
-            SubtitlesFile subtitlesFile = movie.getSubtitles();
-            subtitlesFile.parser();
-            List<Line> lineList = subtitlesFile.getLines().stream()
+            Subtitles subtitles = movie.getSubtitles();
+            subtitles.parse();
+            List<Line> lineList = subtitles.getLines().stream()
                     .filter(line -> line.getTextLines().toUpperCase().contains(fraze.toUpperCase()))
                     .collect(Collectors.toList());
             if (lineList.isEmpty()) {
                 return false;
             }
-            subtitlesFile.setFilteredLines(lineList);
+            subtitles.setFilteredLines(lineList);
             return true;
         } catch (FileNotFoundException e) {
             e.printStackTrace();
             return false;
         }
-    }
-
-    public static String generateSnapshotLink(Movie movie) throws IOException, InterruptedException {
-        Line line = movie.getSubtitles().getFilteredLines().get(0);
-        File file = new File("/home/michal/Obrazy/SpringFragmenterCache/"+(movie.getFileName()+line.getNumber()).hashCode()+".jpg");
-        if (file.exists()) {
-            return (movie.getFileName()+line.getNumber()).hashCode()+".jpg";
-        }
-        line.parseTime();
-        movie.setExtension(getMovieExtension(Paths.get(movie.getPath())));
-        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
-        String timeString = dateTimeFormatter.format(line.getTimeFrom());
-        ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.command(
-                //"konsole",
-               //"--hold",
-                //"-e",
-                "ffmpeg",
-                //"-y",
-                "-n",
-                "-ss", timeString,
-                "-i", movie.getPath()+"/"+movie.getFileName()+movie.getExtension(),
-                //"-vf","subtitles="+movie.getSubtitles().getFilename(),
-                //"-vf","subtitles=TEMP.srt",
-                "-frames:v", "1",
-               "/home/michal/Obrazy/SpringFragmenterCache/"+(movie.getFileName()+line.getNumber()).hashCode()+".jpg"
-        );
-        Process process = processBuilder.start();
-        process.waitFor();
-        return (movie.getFileName()+line.getNumber()).hashCode()+".jpg";
     }
 
     public static String getMovieExtension(Path path) throws IOException {
@@ -123,41 +91,21 @@ public class Utils {
         return null;
     }
 
-    public static String generateFragmentLink(Movie movie) throws IOException {
-        Line line = movie.getSubtitles().getFilteredLines().get(0);
-        line.parseTime();
-        movie.setExtension(getMovieExtension(Paths.get(movie.getPath())));
-        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
-        LocalTime time = line.getTimeFrom().minusMinutes(1).plusNanos((new Double(line.getStartOffset()*1000000000.0)).longValue());
-        double to =  line.getTimeTo().getHour()*3600+line.getTimeTo().getMinute()*60+line.getTimeTo().getSecond()+line.getTimeTo().getNano()/1000000000.0+line.getStopOffset()
-                - (line.getTimeFrom().getHour()*3600+line.getTimeFrom().getMinute()*60+line.getTimeFrom().getSecond()+line.getTimeFrom().getNano()/1000000000.0+line.getStartOffset());
-        String timeString = dateTimeFormatter.format(time);
-        ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.command(
-                //"konsole",
-                 //"--hold",
-                //"-e",
-                "ffmpeg",
-                "-y",
-                "-ss", timeString,
-                "-i", movie.getPath()+"/"+movie.getFileName()+movie.getExtension(),
-                "-ss", "00:01:00",
-                "-t", String.format(Locale.US, "%.3f", to),
-                "-acodec", "copy",
-                "-vcodec", "h264",
-                "-preset", "veryslow",
-                //"-vf", "subtitles=TEMP.srt",
-                "/home/michal/Wideo/SpringFragmenterCache/"+(movie.getFileName()+line.getNumber()).hashCode()+".mp4"
-        );
-        Process process = processBuilder.start();
-        return movie.getFileName()+line.getNumber();
-    }
-
     public static double timeToSeconds(String time) {
         String[] split = time.split(":");
         double hours = Double.valueOf(split[0]);
         double minutes = Double.valueOf(split[1]);
         double seconds = Double.valueOf(split[2]);
         return hours*3600+minutes*60+seconds;
+    }
+
+    public static File createTempSubtitles(Movie movie) throws IOException {
+        File temp = File.createTempFile("temp",".srt");
+        BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(temp));
+        bufferedWriter.write("1\n");
+        bufferedWriter.write("00:00:00.000 --> 10:00:00.000\n");
+        bufferedWriter.write(movie.getSubtitles().getFilteredLines().get(0).getTextLines()+"\n");
+        bufferedWriter.close();
+        return temp;
     }
 }

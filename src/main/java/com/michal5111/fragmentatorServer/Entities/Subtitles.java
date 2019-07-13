@@ -15,8 +15,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
-@JsonDeserialize(as = SRTSubtitlesFile.class)
-public abstract class SubtitlesFile implements Serializable {
+@JsonDeserialize(as = SRTSubtitles.class)
+public abstract class Subtitles implements Serializable {
     @JsonIgnore
     protected File subtitleFile;
     private String filename;
@@ -24,7 +24,7 @@ public abstract class SubtitlesFile implements Serializable {
     protected List<Line> lines = new LinkedList<>();
     protected List<Line> filteredLines = new LinkedList<>();
 
-    public abstract boolean parser() throws FileNotFoundException;
+    public abstract boolean parse() throws FileNotFoundException;
 
     public abstract void prepareForConversion();
 

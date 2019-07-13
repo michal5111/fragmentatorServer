@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Data
 public class Movie {
-    private SubtitlesFile subtitles;
+    private Subtitles subtitles;
     private String fileName;
     private String path;
     private String extension;

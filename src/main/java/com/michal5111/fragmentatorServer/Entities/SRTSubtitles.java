@@ -1,11 +1,18 @@
 package com.michal5111.fragmentatorServer.Entities;
 
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.io.FileNotFoundException;
 import java.util.Scanner;
 
-public class SRTSubtitlesFile extends SubtitlesFile {
+@Builder
+@NoArgsConstructor
+@Data
+public class SRTSubtitles extends Subtitles {
 
-    public boolean parser() throws FileNotFoundException {
+    public boolean parse() throws FileNotFoundException {
         Scanner scanner = new Scanner(this.subtitleFile).useDelimiter("(\n\n|\r\n\r\n)");
         while (scanner.hasNext()) {
             String scannedString = scanner.next();
