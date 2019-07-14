@@ -24,13 +24,18 @@ import static com.michal5111.fragmentatorServer.utils.Utils.getMovieExtension;
 @Service
 public class ConverterService {
 
-    Logger logger = LoggerFactory.getLogger(ConverterService.class);
+    private Logger logger = LoggerFactory.getLogger(ConverterService.class);
 
-    public String generateSnapshotLink(Movie movie) throws IOException, InterruptedException {
+    private String nameGenerator(Movie movie) {
         Line line = movie.getSubtitles().getFilteredLines().get(0);
-        File file = new File("/home/michal/Obrazy/SpringFragmenterCache/"+(movie.getFileName()+line.getNumber()).hashCode()+".jpg");
+        return String.valueOf((movie.getFileName()+line.getNumber()+line.getStartOffset()+line.getStopOffset()).hashCode());
+    }
+
+    public String getSnapshot(Movie movie) throws IOException, InterruptedException {
+        Line line = movie.getSubtitles().getFilteredLines().get(0);
+        File file = new File("/home/michal/Obrazy/SpringFragmenterCache/"+nameGenerator(movie)+".jpg");
         if (file.exists()) {
-            return (movie.getFileName()+line.getNumber()).hashCode()+".jpg";
+            return nameGenerator(movie)+".jpg";
         }
         line.parseTime();
         movie.setExtension(getMovieExtension(Paths.get(movie.getPath())));
@@ -42,15 +47,16 @@ public class ConverterService {
                 "ffmpeg",
                 "-n",
                 "-ss", timeString,
-                "-i", movie.getPath()+"/"+movie.getFileName()+movie.getExtension(),
+                "-i", movie.getPath()+File.separator+movie.getFileName()+movie.getExtension(),
                 "-vf","subtitles="+tempSubtitles.getPath(),
                 "-frames:v", "1",
-                "/home/michal/Obrazy/SpringFragmenterCache/"+(movie.getFileName()+line.getNumber()).hashCode()+".jpg"
+                "/home/michal/Obrazy/SpringFragmenterCache/"+nameGenerator(movie)+".jpg"
         );
         Process process = processBuilder.start();
         process.waitFor();
+        logger.debug(String.valueOf(process.exitValue()));
         tempSubtitles.delete();
-        return (movie.getFileName()+line.getNumber()).hashCode()+".jpg";
+        return nameGenerator(movie)+".jpg";
     }
 
     public String generateFragmentLink(Movie movie) throws IOException {
@@ -80,51 +86,44 @@ public class ConverterService {
                 "-acodec", "copy",
                 "-vcodec", "h264",
                 "-preset", "veryslow",
-                "/home/michal/Wideo/SpringFragmenterCache/"+(movie.getFileName()+line.getNumber()).hashCode()+".mp4"
+                "/home/michal/Wideo/SpringFragmenterCache/"+nameGenerator(movie)+".mp4"
         );
         Process process = processBuilder.start();
         return movie.getFileName()+line.getNumber();
     }
 
     public Flux<ServerSentEvent<String>> convertFragment(Movie movie) throws IOException {
-        Line lineObject = movie.getSubtitles().getFilteredLines().get(0);
+        Line line = movie.getSubtitles().getFilteredLines().get(0);
         File tempSubtitles = Utils.createTempSubtitles(movie);
 
-        String fragmentName = (
-                movie.getFileName()
-                        + lineObject.getNumber()
-                        + lineObject.getStartOffset()
-                        + lineObject.getStopOffset()
-        ).hashCode()
-                + ".mp4";
+        String fragmentName = nameGenerator(movie) + ".mp4";
 
-        Path fragmentPath = Path.of(fragmentName);
+        Path fragmentPath = Path.of("/home/michal/Wideo/SpringFragmenterCache/"+fragmentName);
         if (fragmentPath.toFile().exists()) {
+            logger.debug("File exist");
             return Flux.create(emmiter -> {
                 emmiter.next(ServerSentEvent.<String>builder().event("complete").id("2").data(fragmentName).build());
                 emmiter.complete();
             });
+        } else {
+            logger.debug("File not exist"+"/home/michal/Wideo/SpringFragmenterCache/"+File.separator+fragmentName);
         }
 
-        lineObject.parseTime();
-        try {
-            movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath())));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        line.parseTime();
+        movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath())));
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
-        LocalTime time = lineObject.getTimeFrom().minusMinutes(1)
-                .plusNanos((Double.valueOf(lineObject.getStartOffset()*1000000000.0)).longValue());
-        double to = lineObject.getTimeTo().getHour()*3600
-                + lineObject.getTimeTo().getMinute()*60
-                + lineObject.getTimeTo().getSecond()
-                + lineObject.getTimeTo().getNano()/1000000000.0
-                + lineObject.getStopOffset()
-                - (lineObject.getTimeFrom().getHour()*3600
-                + lineObject.getTimeFrom().getMinute()*60
-                + lineObject.getTimeFrom().getSecond()
-                + lineObject.getTimeFrom().getNano()/1000000000.0
-                + lineObject.getStartOffset());
+        LocalTime time = line.getTimeFrom().minusMinutes(1)
+                .plusNanos((Double.valueOf(line.getStartOffset()*1000000000.0)).longValue());
+        double to = line.getTimeTo().getHour()*3600
+                + line.getTimeTo().getMinute()*60
+                + line.getTimeTo().getSecond()
+                + line.getTimeTo().getNano()/1000000000.0
+                + line.getStopOffset()
+                - (line.getTimeFrom().getHour()*3600
+                + line.getTimeFrom().getMinute()*60
+                + line.getTimeFrom().getSecond()
+                + line.getTimeFrom().getNano()/1000000000.0
+                + line.getStartOffset());
         String timeString2 = dateTimeFormatter.format(time);
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.command(

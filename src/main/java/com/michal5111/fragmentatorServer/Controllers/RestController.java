@@ -22,9 +22,10 @@ import java.util.List;
 @RequestMapping("rest")
 public class RestController {
 
-    Logger logger = LoggerFactory.getLogger(RestController.class);
+    private Logger logger = LoggerFactory.getLogger(RestController.class);
 
     @Autowired
+    private
     ConverterService converterService;
 
     @GetMapping("/search")
@@ -41,7 +42,7 @@ public class RestController {
     @PostMapping("/linesnapshot")
     public String getLineSnapshot(@RequestBody() Movie movie, HttpServletRequest request) throws IOException, InterruptedException {
         return "{\"url\":\"http://" + request.getServerName() +":"+ request.getServerPort() + "/snapshots/"
-                + converterService.generateSnapshotLink(movie)+"\"}";
+                + converterService.getSnapshot(movie)+"\"}";
     }
 
     @PostMapping("/fragment")
@@ -58,14 +59,24 @@ public class RestController {
                                                          @RequestParam Integer lineNumber,
                                                          @RequestParam Double startOffset,
                                                          @RequestParam Double stopOffset,
-                                                         @RequestParam String subtitlesFileName) throws IOException {
+                                                         @RequestParam String subtitlesFileName,
+                                                         HttpServletRequest request) throws IOException {
         logger.info("Request for: "+ fileName + " " + line);
+        logger.debug("Params: fileName: " + fileName
+                + "\nline: " + line
+                + "\ntimeString: " + timeString
+                + "\npath: " + path
+                + "\nlineNumber: " + lineNumber
+                + "\nstartOffset: " + startOffset
+                + "\nstopOffset: " + stopOffset
+                + "\nsubtitlesFileName: " + subtitlesFileName);
+        logger.info(request.getPathTranslated());
         Line line1 = Line.builder()
                 .number(lineNumber)
                 .timeString(timeString)
                 .textLines(line)
                 .startOffset(startOffset)
-                .startOffset(stopOffset)
+                .stopOffset(stopOffset)
                 .build();
         Subtitles subtitles = new SRTSubtitles();
         subtitles.setFilename(subtitlesFileName);

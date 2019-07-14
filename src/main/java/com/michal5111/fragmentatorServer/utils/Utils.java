@@ -32,11 +32,15 @@ public class Utils {
                     .filter(Files::isRegularFile)
                     .filter(Utils::endsWithSRT)
                     .map(Path::toFile)
-                    .map(Utils::createMovieFromPath)
+                    .map(Utils::createMovieFromFile)
                     .filter(movie -> filterMovieByFraze(movie, fraze));
 
         }
-        return Arrays.stream(streams).parallel().flatMap(Function.identity()).sorted(Comparator.comparing(Movie::getFileName)).collect(Collectors.toList());
+        return Arrays.stream(streams)
+                .parallel()
+                .flatMap(Function.identity())
+                .sorted(Comparator.comparing(Movie::getFileName))
+                .collect(Collectors.toList());
     }
 
 
@@ -44,15 +48,15 @@ public class Utils {
         return path.getFileName().toString().endsWith(".srt");
     }
 
-    private static Movie createMovieFromPath(File file) {
-        Movie movie = new Movie();
+    private static Movie createMovieFromFile(File file) {
         Subtitles subtitles = new SRTSubtitles();
         subtitles.setSubtitleFile(file);
-        movie.setSubtitles(subtitles);
-        movie.getSubtitles().setFilename(file.getName());
-        movie.setFileName(file.getName().substring(0,file.getName().lastIndexOf('.')));
-        movie.setPath(file.getPath().substring(0,file.getPath().lastIndexOf('/')));
-        return movie;
+        subtitles.setFilename(file.getName());
+        return  Movie.builder()
+                .subtitles(subtitles)
+                .fileName(file.getName().substring(0,file.getName().lastIndexOf('.')))
+                .path(file.getParent())
+                .build();
     }
 
     private static boolean filterMovieByFraze(Movie movie, String fraze) {
