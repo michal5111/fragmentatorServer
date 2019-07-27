@@ -25,7 +25,4 @@ public abstract class Subtitles implements Serializable {
     protected List<Line> filteredLines = new LinkedList<>();
 
     public abstract boolean parse() throws FileNotFoundException;
-
-    public abstract void prepareForConversion();
-
 }

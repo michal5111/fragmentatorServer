@@ -4,6 +4,7 @@ import com.michal5111.fragmentatorServer.Entities.Line;
 import com.michal5111.fragmentatorServer.Entities.Movie;
 import com.michal5111.fragmentatorServer.Entities.SRTSubtitles;
 import com.michal5111.fragmentatorServer.Entities.Subtitles;
+import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -20,14 +21,14 @@ import java.util.stream.Stream;
 public class Utils {
     static public List<Movie> findFraze(String fraze) throws IOException {
         Path[] paths = new Path[]{
-                Paths.get("/disks/G/Pobrane/Filmy/"),
-                Paths.get("/disks/G/Pobrane/Seriale/"),
-                Paths.get("/disks/E/Downloads/Filmy/"),
-                Paths.get("/disks/E/Downloads/Seriale/"),
-                Paths.get("/disks/G/kopia/Downloads/Seriale/")
+                Paths.get("/disks/G/Pobrane/Filmy"),
+                Paths.get("/disks/G/Pobrane/Seriale"),
+                Paths.get("/disks/E/Downloads/Filmy"),
+                Paths.get("/disks/E/Downloads/Seriale"),
+                Paths.get("/disks/G/kopia/Downloads/Seriale")
         };
         Stream<Movie>[] streams = new Stream[paths.length];
-        for (int i = 0; i < paths.length-1; i++) {
+        for (int i = 0; i < paths.length; i++) {
             streams[i] = Files.walk(paths[i])
                     .filter(Files::isRegularFile)
                     .filter(Utils::endsWithSRT)
@@ -37,10 +38,53 @@ public class Utils {
 
         }
         return Arrays.stream(streams)
-                .parallel()
                 .flatMap(Function.identity())
                 .sorted(Comparator.comparing(Movie::getFileName))
+                .parallel()
                 .collect(Collectors.toList());
+    }
+
+    static public void test() throws IOException {
+        Path[] paths = new Path[]{
+                Paths.get("/disks/G/Pobrane/Filmy"),
+                Paths.get("/disks/G/Pobrane/Seriale"),
+                Paths.get("/disks/E/Downloads/Filmy"),
+                Paths.get("/disks/E/Downloads/Seriale"),
+                Paths.get("/disks/G/kopia/Downloads/Seriale")
+        };
+        Stream<Path>[] streams = new Stream[paths.length];
+        for (int i = 0; i < paths.length; i++) {
+            streams[i] = Files.walk(paths[i])
+                    .filter(Files::isRegularFile)
+                    .filter(x -> !x.getFileName().toString().endsWith(".srt"))
+                    .filter(x -> !x.getFileName().toString().endsWith(".torrent"))
+                    .filter(x -> !x.getFileName().toString().endsWith(".txt"))
+                    .filter(x -> !x.getFileName().toString().endsWith(".divx"))
+                    .filter(x -> !x.getFileName().toString().endsWith(".nfo"))
+                    .filter(x -> !x.getFileName().toString().endsWith(".idx"))
+                    .filter(x -> !x.getFileName().toString().endsWith(".rmvb"))
+                    .filter(x -> !x.getFileName().toString().endsWith(".url"))
+                    .filter(x -> {
+                        try {
+                            return Files.probeContentType(x) == null;
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        return false;
+                    });
+
+
+        }
+        Arrays.stream(streams)
+                .flatMap(Function.identity())
+                .forEach(path -> {
+                    try {
+                        System.out.println(path);
+                        System.out.println(Files.probeContentType(path));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
     }
 
 
@@ -77,12 +121,15 @@ public class Utils {
         }
     }
 
-    public static String getMovieExtension(Path path) throws IOException {
+    public static String getMovieExtension(Path path, String srtFileName) throws IOException, MovieNotFoundException {
         Optional<Path> video = Files.walk(path)
                 .filter(Files::isRegularFile)
+                .filter(x -> x.getFileName().toString().contains(srtFileName))
                 .filter(x -> {
                     try {
-                        return Files.probeContentType(x).contains("video");
+                        return Files.probeContentType(x).contains("video") ||
+                                x.getFileName().toString().endsWith(".divx") ||
+                                x.getFileName().toString().endsWith(".rmvb");
                     } catch (IOException e) {
                         e.printStackTrace();
                         return false;
@@ -92,7 +139,7 @@ public class Utils {
             String pathString = video.get().toString();
             return pathString.substring(pathString.lastIndexOf("."));
         }
-        return null;
+        throw new MovieNotFoundException("Movie not found");
     }
 
     public static double timeToSeconds(String time) {
@@ -111,5 +158,42 @@ public class Utils {
         bufferedWriter.write(movie.getSubtitles().getFilteredLines().get(0).getTextLines()+"\n");
         bufferedWriter.close();
         return temp;
+    }
+
+    static public List<Movie> findMovie(String fraze) throws IOException {
+        Path[] paths = new Path[]{
+                Paths.get("/disks/G/Pobrane/Filmy"),
+                Paths.get("/disks/G/Pobrane/Seriale"),
+                Paths.get("/disks/E/Downloads/Filmy"),
+                Paths.get("/disks/E/Downloads/Seriale"),
+                Paths.get("/disks/G/kopia/Downloads/Seriale")
+        };
+        Stream<Movie>[] streams = new Stream[paths.length];
+        for (int i = 0; i < paths.length; i++) {
+            streams[i] = Files.walk(paths[i])
+                    .filter(Files::isRegularFile)
+                    .filter(Utils::endsWithSRT)
+                    .map(Path::toFile)
+                    .map(Utils::createMovieFromFile)
+                    .filter(movie -> filterMovieByTitle(movie, fraze));
+
+        }
+        return Arrays.stream(streams)
+                .flatMap(Function.identity())
+                .sorted(Comparator.comparing(Movie::getFileName))
+                .parallel()
+                .collect(Collectors.toList());
+    }
+
+    private static boolean filterMovieByTitle(Movie movie, String fraze) {
+        try {
+            Subtitles subtitles = movie.getSubtitles();
+            subtitles.parse();
+            movie.getSubtitles().setFilteredLines(movie.getSubtitles().getLines());
+            return movie.getFileName().toUpperCase().contains(fraze.toUpperCase());
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 }
