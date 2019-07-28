@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 import javax.servlet.http.HttpServletRequest;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
@@ -29,7 +30,7 @@ public class RestController {
     private
     ConverterService converterService;
 
-    @GetMapping("/search")
+    @GetMapping("/searchFraze")
     public List<Movie> getMoviesList(@RequestParam("fraze") String fraze) {
         Long startTime = System.nanoTime();
         List<Movie> movieList = new LinkedList<>();
@@ -84,8 +85,6 @@ public class RestController {
                 .number(lineNumber)
                 .timeString(timeString)
                 .textLines(line)
-                .startOffset(startOffset)
-                .stopOffset(stopOffset)
                 .build();
         Subtitles subtitles = new SRTSubtitles();
         subtitles.setFilename(subtitlesFileName);
@@ -94,62 +93,65 @@ public class RestController {
                 .fileName(fileName)
                 .path(path)
                 .subtitles(subtitles)
+                .startOffset(startOffset)
+                .stopOffset(stopOffset)
                 .build();
         return converterService.convertFragment(movie);
     }
 
     @GetMapping(path = "/dialog")
     public Flux<ServerSentEvent<String>> requestDialog(@RequestParam String fileName,
-                                                       @RequestParam List<String> lines,
-                                                       @RequestParam List<String> timeStrings,
+                                                       @RequestParam List<String> line,
+                                                       @RequestParam List<String> timeString,
                                                        @RequestParam String path,
-                                                       @RequestParam List<Integer> lineNumbers,
+                                                       @RequestParam List<Integer> lineNumber,
                                                        @RequestParam Double startOffset,
                                                        @RequestParam Double stopOffset,
                                                        @RequestParam String subtitlesFileName,
                                                        HttpServletRequest request) throws IOException, MovieNotFoundException {
         List<Line> linesList = new LinkedList<>();
-        Line firstLine = new Line();
-        firstLine.setStartOffset(startOffset);
-        firstLine.setNumber(lineNumbers.get(0));
-        firstLine.setTextLines(lines.get(0));
-        firstLine.setTimeString(timeStrings.get(0));
-        linesList.add(firstLine);
-        for (int i = 1; i < lines.size() - 1; i++) {
-            Line line = new Line();
-            line.setNumber(lineNumbers.get(i));
-            line.setTextLines(lines.get(i));
-            line.setTimeString(timeStrings.get(i));
-            linesList.add(line);
+        for (int i = 0; i < line.size(); i++) {
+            Line tempLine = new Line();
+            tempLine.setNumber(lineNumber.get(i));
+            tempLine.setTextLines(line.get(i));
+            tempLine.setTimeString(timeString.get(i));
+            linesList.add(tempLine);
         }
-        Line lastLine = new Line();
-        lastLine.setNumber(lineNumbers.get(lineNumbers.size() - 1));
-        lastLine.setTextLines(lines.get(lines.size() - 1));
-        lastLine.setTimeString(timeStrings.get(timeStrings.size() - 1));
-        lastLine.setStopOffset(stopOffset);
-        linesList.add(lastLine);
         Subtitles subtitles = new SRTSubtitles();
-        subtitles.setFilename(subtitlesFileName);
+        subtitles.setFilename(path+"/"+subtitlesFileName);
         subtitles.setFilteredLines(linesList);
         Movie movie = Movie.builder()
                 .fileName(fileName)
                 .path(path)
                 .subtitles(subtitles)
+                .startOffset(startOffset)
+                .stopOffset(stopOffset)
                 .build();
         return converterService.convertDialog(movie);
     }
 
     @GetMapping("/searchMovie")
-    public List<Movie> searchByMovie(@RequestParam("fraze") String fraze) {
+    public List<Movie> searchByMovie(@RequestParam("title") String title) {
         Long startTime = System.nanoTime();
         List<Movie> movieList = new LinkedList<>();
         try {
-            movieList = Utils.findMovie(fraze);
+            movieList = Utils.findMovie(title);
         } catch (IOException e) {
             e.printStackTrace();
         }
         Long stopTime = System.nanoTime();
         System.out.println((stopTime - startTime) / 1000000 + "ms");
         return movieList;
+    }
+
+    @GetMapping("/subtitles")
+    public List<Line> getLines(@RequestParam("fileName") String fileName) {
+        List<Line> lineList = new LinkedList<>();
+        try {
+            lineList = Utils.getLines(fileName);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        return lineList;
     }
 }

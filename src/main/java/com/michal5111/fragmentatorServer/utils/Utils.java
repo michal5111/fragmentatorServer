@@ -10,6 +10,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -96,9 +97,9 @@ public class Utils {
         Subtitles subtitles = new SRTSubtitles();
         subtitles.setSubtitleFile(file);
         subtitles.setFilename(file.getName());
-        return  Movie.builder()
+        return Movie.builder()
                 .subtitles(subtitles)
-                .fileName(file.getName().substring(0,file.getName().lastIndexOf('.')))
+                .fileName(file.getName().substring(0, file.getName().lastIndexOf('.')))
                 .path(file.getParent())
                 .build();
     }
@@ -147,15 +148,15 @@ public class Utils {
         double hours = Double.valueOf(split[0]);
         double minutes = Double.valueOf(split[1]);
         double seconds = Double.valueOf(split[2]);
-        return hours*3600+minutes*60+seconds;
+        return hours * 3600 + minutes * 60 + seconds;
     }
 
     public static File createTempSubtitles(Movie movie) throws IOException {
-        File temp = File.createTempFile("temp",".srt");
+        File temp = File.createTempFile("temp", ".srt");
         BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(temp));
         bufferedWriter.write("1\n");
         bufferedWriter.write("00:00:00.000 --> 10:00:00.000\n");
-        bufferedWriter.write(movie.getSubtitles().getFilteredLines().get(0).getTextLines()+"\n");
+        bufferedWriter.write(movie.getSubtitles().getFilteredLines().get(0).getTextLines() + "\n");
         bufferedWriter.close();
         return temp;
     }
@@ -185,15 +186,30 @@ public class Utils {
                 .collect(Collectors.toList());
     }
 
-    private static boolean filterMovieByTitle(Movie movie, String fraze) {
-        try {
-            Subtitles subtitles = movie.getSubtitles();
-            subtitles.parse();
-            movie.getSubtitles().setFilteredLines(movie.getSubtitles().getLines());
-            return movie.getFileName().toUpperCase().contains(fraze.toUpperCase());
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            return false;
-        }
+    private static boolean filterMovieByTitle(Movie movie, String title) {
+        //            Subtitles subtitles = movie.getSubtitles();
+//            subtitles.parse();
+//            movie.getSubtitles().setFilteredLines(movie.getSubtitles().getLines());
+        return movie.getFileName().toUpperCase().replace('.',' ').contains(title.toUpperCase());
+    }
+
+    public static List<Line> getLines(String fileName) throws FileNotFoundException {
+        Subtitles subtitles = new SRTSubtitles();
+        subtitles.setFilename(fileName);
+        subtitles.setSubtitleFile(new File(fileName));
+        subtitles.parse();
+        return subtitles.getLines();
+    }
+
+    public static double calculateDuration(LocalTime timeFrom, LocalTime timeTo, double startOffset, double stopOffset) {
+        return timeTo.getHour() * 3600 + timeTo.getMinute() * 60
+                + timeTo.getSecond()
+                + timeTo.getNano() / 1000000000.0
+                + stopOffset
+                - (timeFrom.getHour() * 3600
+                + timeFrom.getMinute() * 60
+                + timeFrom.getSecond()
+                + timeFrom.getNano() / 1000000000.0
+                + startOffset);
     }
 }

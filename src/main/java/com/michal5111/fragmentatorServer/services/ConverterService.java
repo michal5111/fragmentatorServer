@@ -20,6 +20,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+import static com.michal5111.fragmentatorServer.utils.Utils.calculateDuration;
 import static com.michal5111.fragmentatorServer.utils.Utils.getMovieExtension;
 
 @Service
@@ -29,7 +30,7 @@ public class ConverterService {
 
     private String nameGenerator(Movie movie) {
         Line line = movie.getSubtitles().getFilteredLines().get(0);
-        return String.valueOf((movie.getFileName()+line.getTextLines()+line.getNumber()+line.getStartOffset()+line.getStopOffset()).hashCode());
+        return String.valueOf((movie.getFileName()+line.getTextLines()+line.getNumber()+movie.getStartOffset()+movie.getStopOffset()).hashCode());
     }
 
     public String getSnapshot(Movie movie) throws IOException, InterruptedException, MovieNotFoundException {
@@ -65,16 +66,8 @@ public class ConverterService {
         line.parseTime();
         movie.setExtension(getMovieExtension(Paths.get(movie.getPath()),movie.getFileName()));
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
-        LocalTime time = line.getTimeFrom().minusMinutes(1).plusNanos((Double.valueOf(line.getStartOffset()*1000000000.0)).longValue());
-        double to =  line.getTimeTo().getHour()*3600+line.getTimeTo().getMinute()*60
-                +line.getTimeTo().getSecond()
-                +line.getTimeTo().getNano()/1000000000.0
-                +line.getStopOffset()
-                - (line.getTimeFrom().getHour()*3600
-                +line.getTimeFrom().getMinute()*60
-                +line.getTimeFrom().getSecond()
-                +line.getTimeFrom().getNano()/1000000000.0
-                +line.getStartOffset());
+        LocalTime time = line.getTimeFrom().minusMinutes(1).plusNanos((Double.valueOf(movie.getStartOffset()*1000000000.0)).longValue());
+        double to =  calculateDuration(line.getTimeFrom(),line.getTimeTo(),movie.getStartOffset(),movie.getStopOffset());
         String timeString = dateTimeFormatter.format(time);
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.command(
@@ -114,17 +107,8 @@ public class ConverterService {
         movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath()),movie.getFileName()));
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
         LocalTime time = line.getTimeFrom().minusMinutes(1)
-                .plusNanos((Double.valueOf(line.getStartOffset()*1000000000.0)).longValue());
-        double to = line.getTimeTo().getHour()*3600
-                + line.getTimeTo().getMinute()*60
-                + line.getTimeTo().getSecond()
-                + line.getTimeTo().getNano()/1000000000.0
-                + line.getStopOffset()
-                - (line.getTimeFrom().getHour()*3600
-                + line.getTimeFrom().getMinute()*60
-                + line.getTimeFrom().getSecond()
-                + line.getTimeFrom().getNano()/1000000000.0
-                + line.getStartOffset());
+                .plusNanos((Double.valueOf(movie.getStartOffset()*1000000000.0)).longValue());
+        double to = Utils.calculateDuration(line.getTimeFrom(),line.getTimeTo(),movie.getStartOffset(),movie.getStopOffset());
         String timeString2 = dateTimeFormatter.format(time);
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.command(
@@ -182,17 +166,8 @@ public class ConverterService {
         movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath()),movie.getFileName()));
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
         LocalTime time = firstLine.getTimeFrom().minusMinutes(1)
-                .plusNanos((Double.valueOf(firstLine.getStartOffset()*1000000000.0)).longValue());
-        double to = lastLine.getTimeTo().getHour()*3600
-                + lastLine.getTimeTo().getMinute()*60
-                + lastLine.getTimeTo().getSecond()
-                + lastLine.getTimeTo().getNano()/1000000000.0
-                + lastLine.getStopOffset()
-                - (firstLine.getTimeFrom().getHour()*3600
-                + firstLine.getTimeFrom().getMinute()*60
-                + firstLine.getTimeFrom().getSecond()
-                + firstLine.getTimeFrom().getNano()/1000000000.0
-                + firstLine.getStartOffset());
+                .plusNanos((Double.valueOf(movie.getStartOffset()*1000000000.0)).longValue());
+        double to = Utils.calculateDuration(firstLine.getTimeFrom(),lastLine.getTimeTo(),movie.getStartOffset(),movie.getStopOffset());
         String timeString2 = dateTimeFormatter.format(time);
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.command(

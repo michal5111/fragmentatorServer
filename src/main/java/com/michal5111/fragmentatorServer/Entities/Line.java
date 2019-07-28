@@ -1,7 +1,6 @@
 package com.michal5111.fragmentatorServer.Entities;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,10 +22,6 @@ public class Line implements Serializable {
     @JsonIgnore
     private LocalTime timeTo;
     private String textLines;
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    private double startOffset;
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    private double stopOffset;
 
     public boolean parseTime() {
         String[] timeStringSplit = timeString.split(" --> ");
