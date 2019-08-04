@@ -40,8 +40,8 @@ public class Utils {
         }
         return Arrays.stream(streams)
                 .flatMap(Function.identity())
-                .sorted(Comparator.comparing(Movie::getFileName))
                 .parallel()
+                .sorted(Comparator.comparing(Movie::getFileName))
                 .collect(Collectors.toList());
     }
 
@@ -97,11 +97,13 @@ public class Utils {
         Subtitles subtitles = new SRTSubtitles();
         subtitles.setSubtitleFile(file);
         subtitles.setFilename(file.getName());
-        return Movie.builder()
+        Movie movie = Movie.builder()
                 .subtitles(subtitles)
                 .fileName(file.getName().substring(0, file.getName().lastIndexOf('.')))
                 .path(file.getParent())
                 .build();
+        subtitles.setMovie(movie);
+        return movie;
     }
 
     private static boolean filterMovieByFraze(Movie movie, String fraze) {
@@ -145,9 +147,9 @@ public class Utils {
 
     public static double timeToSeconds(String time) {
         String[] split = time.split(":");
-        double hours = Double.valueOf(split[0]);
-        double minutes = Double.valueOf(split[1]);
-        double seconds = Double.valueOf(split[2]);
+        double hours = Double.parseDouble(split[0]);
+        double minutes = Double.parseDouble(split[1]);
+        double seconds = Double.parseDouble(split[2]);
         return hours * 3600 + minutes * 60 + seconds;
     }
 
@@ -211,5 +213,43 @@ public class Utils {
                 + timeFrom.getSecond()
                 + timeFrom.getNano() / 1000000000.0
                 + startOffset);
+    }
+
+    static public Stream<Movie> findMovies() throws IOException {
+        Path[] paths = new Path[]{
+                Paths.get("/disks/G/Pobrane/Filmy"),
+                Paths.get("/disks/G/Pobrane/Seriale"),
+                Paths.get("/disks/E/Downloads/Filmy"),
+                Paths.get("/disks/E/Downloads/Seriale"),
+                Paths.get("/disks/G/kopia/Downloads/Seriale")
+        };
+        Stream<Movie>[] streams = new Stream[paths.length];
+        for (int i = 0; i < paths.length; i++) {
+            streams[i] = Files.walk(paths[i])
+                    .filter(Files::isRegularFile)
+                    .filter(Utils::endsWithSRT)
+                    .map(Path::toFile)
+                    .map(Utils::createMovieFromFile)
+                    .peek(movie -> {
+                        try {
+                            movie.getSubtitles().parse();
+                        } catch (FileNotFoundException e) {
+                            e.printStackTrace();
+                        }
+                    });
+//                    .peek(movie -> {
+//                        try {
+//                            movie.setExtension(getMovieExtension(Path.of(movie.getPath()),movie.getSubtitles().getFilename()));
+//                        } catch (IOException | MovieNotFoundException e) {
+//                            e.printStackTrace();
+//                        }
+//                    });
+
+        }
+        return Arrays.stream(streams)
+                .flatMap(Function.identity())
+                .parallel()
+                .sorted(Comparator.comparing(Movie::getFileName));
+                //.collect(Collectors.toList());
     }
 }

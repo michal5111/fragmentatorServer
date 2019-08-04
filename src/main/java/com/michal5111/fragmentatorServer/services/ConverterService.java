@@ -29,8 +29,17 @@ public class ConverterService {
     private Logger logger = LoggerFactory.getLogger(ConverterService.class);
 
     private String nameGenerator(Movie movie) {
-        Line line = movie.getSubtitles().getFilteredLines().get(0);
-        return String.valueOf((movie.getFileName()+line.getTextLines()+line.getNumber()+movie.getStartOffset()+movie.getStopOffset()).hashCode());
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append(movie.getFileName());
+        stringBuilder.append(movie.getStartOffset());
+        stringBuilder.append(movie.getStopOffset());
+        movie.getSubtitles().getFilteredLines().forEach(line -> {
+            stringBuilder.append(line.getTextLines());
+            stringBuilder.append(line.getNumber());
+            stringBuilder.append(line.getTimeFrom());
+            stringBuilder.append(line.getTimeTo());
+        });
+        return String.valueOf(stringBuilder.toString().hashCode());
     }
 
     public String getSnapshot(Movie movie) throws IOException, InterruptedException, MovieNotFoundException {
@@ -140,7 +149,7 @@ public class ConverterService {
             emmiter.complete();
             tempSubtitles.delete();
         });
-        return toEvent.concatWith(percent.concatWith(complete));
+        return toEvent.concatWith(percent.concatWith(complete)).doOnError(s -> ServerSentEvent.builder(s).event("error").data(s).id("2").build());
     }
 
     public Flux<ServerSentEvent<String>> convertDialog(Movie movie) throws IOException, MovieNotFoundException {
@@ -160,7 +169,6 @@ public class ConverterService {
 
         Line firstLine = movie.getSubtitles().getFilteredLines().get(0);
         Line lastLine = movie.getSubtitles().getFilteredLines().get(movie.getSubtitles().getFilteredLines().size()-1);
-        //File tempSubtitles = Utils.createTempSubtitles(movie);
         firstLine.parseTime();
         lastLine.parseTime();
         movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath()),movie.getFileName()));
@@ -169,6 +177,20 @@ public class ConverterService {
                 .plusNanos((Double.valueOf(movie.getStartOffset()*1000000000.0)).longValue());
         double to = Utils.calculateDuration(firstLine.getTimeFrom(),lastLine.getTimeTo(),movie.getStartOffset(),movie.getStopOffset());
         String timeString2 = dateTimeFormatter.format(time);
+        ProcessBuilder subtitlesProcessBuilder = new ProcessBuilder();
+        subtitlesProcessBuilder.command(
+                "ffmpeg",
+                "-y",
+                "-i", movie.getSubtitles().getFilename(),
+                "-ss", timeString2,
+                "/tmp/temp.srt"
+        );
+        Process subtitleProcess = subtitlesProcessBuilder.start();
+        try {
+            subtitleProcess.waitFor();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.command(
                 "ffmpeg",
@@ -180,7 +202,7 @@ public class ConverterService {
                 "-acodec", "aac",
                 "-vcodec", "h264",
                 "-preset", "veryslow",
-                //"-vf", "subtitles="+tempSubtitles.getPath(),
+                "-vf", "subtitles=/tmp/temp.srt",
                 "/home/michal/Wideo/SpringFragmenterCache/"+fragmentName
         );
         processBuilder.redirectErrorStream(true);
@@ -197,8 +219,7 @@ public class ConverterService {
         Flux<ServerSentEvent<String>> complete = Flux.create(emmiter -> {
             emmiter.next(ServerSentEvent.<String>builder().event("complete").id("2").data(fragmentName).build());
             emmiter.complete();
-            //tempSubtitles.delete();
         });
-        return toEvent.concatWith(percent.concatWith(complete));
+        return toEvent.concatWith(percent.concatWith(complete)).doOnError(s -> ServerSentEvent.builder(s).event("error").data(s).id("2").build());
     }
 }

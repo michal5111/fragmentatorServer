@@ -27,6 +27,7 @@ public class SRTSubtitles extends Subtitles {
                 if (!splitString[0].trim().equals(""))
                     number = Integer.parseInt(splitString[0].trim().strip());
             } catch (NumberFormatException e) {
+                System.out.println(getMovie().getPath()+"/"+getFilename());
                 System.out.println(Arrays.toString(splitString));
                 System.out.println(e.getMessage());
             } finally {
@@ -40,6 +41,7 @@ public class SRTSubtitles extends Subtitles {
                     }
                 }
                 line.setTextLines(stringBuilder.toString());
+                line.setSubtitles(this);
                 lines.add(line);
             }
         }
