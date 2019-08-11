@@ -12,11 +12,11 @@ import java.util.Optional;
 @Repository
 public interface MovieRepository extends JpaRepository<Movie, Long> {
 
-    @Query(value = "select * from movie m left join subtitles s on s.movie_id = m.id where s.id in  (select subtitles_id from line where lower(text_lines) like lower(concat('%',:fraze,'%')))",nativeQuery = true)
-    List<Movie> findMoviesByFraze(@Param("fraze") String fraze);
+    @Query(value = "select * from movie m left join subtitles s on s.movie_id = m.id where s.id in  (select subtitles_id from line where lower(text_lines) like lower(concat('%',:phrase,'%')))",nativeQuery = true)
+    List<Movie> findMoviesByPhrase(@Param("phrase") String phrase);
 
-    @Query(value = "select m from Movie m inner join m.subtitles s where s in (select l.subtitles from Line l where lower(text_lines) like lower(concat('%',:fraze,'%')))")
-    List<Movie> findMoviesByFraze2(@Param("fraze") String fraze);
+    @Query(value = "select m from Movie m inner join m.subtitles s where s in (select l.subtitles from Line l where lower(text_lines) like lower(concat('%',:phrase,'%')))")
+    List<Movie> findMoviesByPhrase2(@Param("phrase") String phrase);
 
     List<Movie> findMovieByFileNameContainingIgnoreCase(String title);
 

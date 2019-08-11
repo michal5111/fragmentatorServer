@@ -29,3 +29,5 @@ build/
 
 ### VS Code ###
 .vscode/
+/com.michal5111.fragmentatorServer.Entities.Movie/
+/com.michal5111.fragmentatorServer.Entities.Line/

@@ -20,6 +20,7 @@ import java.util.List;
 @Data
 @JsonDeserialize(as = SRTSubtitles.class)
 @EqualsAndHashCode
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Subtitles implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,6 +36,7 @@ public class Subtitles implements Serializable {
     protected List<Line> lines = new LinkedList<>();
     @Transient
     @JsonInclude
+    @EqualsAndHashCode.Exclude
     protected List<Line> filteredLines = new LinkedList<>();
 
     public boolean parse() throws FileNotFoundException {

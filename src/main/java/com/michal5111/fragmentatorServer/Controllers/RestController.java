@@ -9,25 +9,35 @@ import com.michal5111.fragmentatorServer.repositories.LineRepository;
 import com.michal5111.fragmentatorServer.repositories.MovieRepository;
 import com.michal5111.fragmentatorServer.repositories.SubtitlesRepository;
 import com.michal5111.fragmentatorServer.services.ConverterService;
+import com.michal5111.fragmentatorServer.services.DatabaseService;
 import com.michal5111.fragmentatorServer.utils.Utils;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.hibernate.search.jpa.FullTextEntityManager;
+import org.hibernate.search.jpa.FullTextQuery;
+import org.hibernate.search.jpa.Search;
+import org.hibernate.search.query.dsl.QueryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 @org.springframework.web.bind.annotation.RestController
 @RequestMapping("api")
 public class RestController {
 
-    private Logger logger = LoggerFactory.getLogger(RestController.class);
+    private final Logger logger = LoggerFactory.getLogger(RestController.class);
 
     private final ConverterService converterService;
 
@@ -37,27 +47,18 @@ public class RestController {
 
     private final LineRepository lineRepository;
 
-    public RestController(ConverterService converterService, MovieRepository movieRepository, SubtitlesRepository subtitlesRepository, LineRepository lineRepository) {
+    private final DatabaseService databaseService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    public RestController(ConverterService converterService, MovieRepository movieRepository, SubtitlesRepository subtitlesRepository, LineRepository lineRepository, DatabaseService databaseService) {
         this.converterService = converterService;
         this.movieRepository = movieRepository;
         this.subtitlesRepository = subtitlesRepository;
         this.lineRepository = lineRepository;
+        this.databaseService = databaseService;
     }
-
-//    @GetMapping("/searchFraze")
-//    public List<Movie> getMoviesList(@RequestParam("fraze") String fraze) {
-//        logger.info("Search for:" + fraze);
-//        Long startTime = System.nanoTime();
-//        List<Movie> movieList = new LinkedList<>();
-//        try {
-//            movieList = Utils.findFraze(fraze);
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//        Long stopTime = System.nanoTime();
-//        System.out.println((stopTime - startTime) / 1000000 + "ms");
-//        return movieList;
-//    }
 
     @GetMapping("/test")
     public String test() throws IOException {
@@ -66,16 +67,15 @@ public class RestController {
     }
 
     @PostMapping("/linesnapshot")
-    public String getLineSnapshot(@RequestBody() Movie movie, HttpServletRequest request) throws IOException, InterruptedException, MovieNotFoundException {
-        return "{\"url\":\"http://" + request.getServerName() + ":" + request.getServerPort() + "/snapshots/"
-                + converterService.getSnapshot(movie) + "\"}";
+    public String getLineSnapshot(@RequestBody() Movie movie, HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException, MovieNotFoundException {
+        return "{\"url\":\"http://" + request.getServerName() + ":" + request.getServerPort() + "/snapshots/" + converterService.getSnapshot(movie) + "\"}";
     }
 
-    @PostMapping("/fragment")
-    public String getfragment(@RequestBody() Movie movie, HttpServletRequest request) throws IOException, MovieNotFoundException {
-        return "{\"url\":\"http://" + request.getServerName() + ":" + request.getServerPort() + "/fragments/"
-                + converterService.generateFragmentLink(movie) + "\"}";
-    }
+//    @PostMapping("/fragment")
+//    public String getfragment(@RequestBody() Movie movie, HttpServletRequest request) throws IOException, MovieNotFoundException {
+//        return "{\"url\":\"http://" + request.getServerName() + ":" + request.getServerPort() + "/fragments/"
+//                + converterService.generateFragmentLink(movie) + "\"}";
+//    }
 
     @GetMapping(path = "/requestFragment")
     public Flux<ServerSentEvent<String>> requestFragment(@RequestParam String fileName,
@@ -145,60 +145,31 @@ public class RestController {
         return converterService.convertDialog(movie);
     }
 
-//    @GetMapping("/searchMovie")
-//    public List<Movie> searchByMovie(@RequestParam("title") String title) {
-//        Long startTime = System.nanoTime();
-//        List<Movie> movieList = new LinkedList<>();
-//        try {
-//            movieList = Utils.findMovie(title);
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//        Long stopTime = System.nanoTime();
-//        System.out.println((stopTime - startTime) / 1000000 + "ms");
-//        return movieList;
+//    @GetMapping("/buildDatabase")
+//    public List<Movie> buildDatabase() throws IOException {
+//        List<Movie> movieList = Utils.findMovies().peek(movie -> {
+//            movie.getSubtitles().getLines().forEach(Line::parseTime);
+//            try {
+//                movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath()),movie.getFileName()));
+//                movie.getSubtitles().parse();
+//            } catch (Exception e) {
+//                logger.error(movie.getPath()+"/"+movie.getFileName());
+//                logger.error(movie.getSubtitles().getFilename());
+//                logger.error(String.valueOf(movie.getSubtitles().getLines().size()));
+//                e.printStackTrace();
+//            }
+//        }).collect(Collectors.toList());
+//        return movieRepository.saveAll(movieList);
 //    }
-
-//    @GetMapping("/subtitles")
-//    public List<Line> getLines(@RequestParam("fileName") String fileName) {
-//        List<Line> lineList = new LinkedList<>();
-//        try {
-//            lineList = Utils.getLines(fileName);
-//        } catch (FileNotFoundException e) {
-//            e.printStackTrace();
-//        }
-//        return lineList;
-//    }
-
-    @GetMapping("/buildDatabase")
-    public List<Movie> buildDatabase() throws IOException {
-        List<Movie> movieList = Utils.findMovies().peek(movie -> {
-            movie.getSubtitles().getLines().forEach(Line::parseTime);
-        }).collect(Collectors.toList());
-        return movieRepository.saveAll(movieList);
-    }
 
     @GetMapping("updateDatabase")
     public List<Movie> updateDatabase() throws IOException {
-        List<Movie> addedMovies = new LinkedList<>();
-        Utils.findMovies().forEach(movie -> {
-            Optional<Movie> optionalMovie = movieRepository
-                    .findByPathAndFileNameEquals(movie.getPath(),movie.getFileName());
-            if (optionalMovie.isPresent()) {
-                return;
-            }
-            System.out.println("Adding movie: " + movie.getPath()+"/"+movie.getFileName());
-            movie.getSubtitles().getLines().forEach(Line::parseTime);
-
-            addedMovies.add(movie);
-            movieRepository.save(movie);
-        });
-        return addedMovies;
+        return updateDatabase();
     }
 
     @GetMapping("/lineHints")
-    public List<Line> getLinesSQL(@RequestParam("fraze") String fraze) {
-        return lineRepository.findText2(fraze);
+    public List<Line> getLinesSQL(@RequestParam("phrase") String phrase) {
+        return lineRepository.findText2(phrase);
     }
 
     @GetMapping("/movieHints")
@@ -206,10 +177,10 @@ public class RestController {
         return movieRepository.findTitleHints(title);
     }
 
-    @GetMapping("/searchFraze")
-    public List<Movie> getMovieSQL(@RequestParam("fraze") String fraze) {
-        return movieRepository.findMoviesByFraze(fraze);
-    }
+//    @GetMapping("/searchPhrase")
+//    public List<Movie> getMovieSQL(@RequestParam("phrase") String phrase) {
+//        return movieRepository.findMoviesByPhrase(phrase);
+//    }
 
     @GetMapping("/searchMovie")
     public List<Movie> getMovieByTitleSQL(@RequestParam("title") String title) {
@@ -222,7 +193,66 @@ public class RestController {
     }
 
     @GetMapping("/getFilteredLines")
-    public List<Line> getFilteredLines(@RequestParam("subtitlesId") Long movieId,@RequestParam("fraze") String fraze) {
-        return lineRepository.findFilteredLines(movieId,fraze);
+    public List<Line> getFilteredLines(@RequestParam("subtitlesId") Long movieId,@RequestParam("phrase") String phrase) {
+        return lineRepository.findFilteredLines(movieId,phrase);
+    }
+
+    @GetMapping("/updateIndex")
+    public String updateIndex() throws InterruptedException {
+        FullTextEntityManager fullTextEntityManager
+                = Search.getFullTextEntityManager(entityManager);
+        fullTextEntityManager.createIndexer().startAndWait();
+        return "Success";
+    }
+
+    @GetMapping("/searchPhrase")
+    public Set<Movie> searchLineIndexed(@RequestParam("phrase") String phrase) {
+        FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
+        QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()
+                .buildQueryBuilder()
+                .forEntity(Line.class)
+                .get();
+        Query query = queryBuilder
+                .phrase()
+                .withSlop(2)
+                //.simpleQueryString()
+                .onField("textLines")
+                .sentence(phrase)
+                //.matching(phrase)
+                .createQuery();
+        FullTextQuery jpaQuery = fullTextEntityManager.createFullTextQuery(query,Line.class);
+        //jpaQuery.setMaxResults(100);
+        jpaQuery.setSort(Sort.RELEVANCE);
+        List<Line> resultList = jpaQuery.getResultList();
+        Set<Movie> movieSet = new HashSet<>();
+        resultList.forEach(line -> {
+            Subtitles subtitles = line.getSubtitles();
+            subtitles.getFilteredLines().add(line);
+            Movie movie = subtitles.getMovie();
+            movieSet.add(movie);
+        });
+        return movieSet;
+    }
+
+    @GetMapping("/searchPhrase2")
+    public List searchLineIndexed2(@RequestParam("phrase") String phrase, @RequestParam("firstResult") int firstResult, @RequestParam("maxResults") int maxResults) {
+        FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
+        QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()
+                .buildQueryBuilder()
+                .forEntity(Line.class)
+                .get();
+        Query query = queryBuilder
+                .phrase()
+                .withSlop(2)
+                //.simpleQueryString()
+                .onField("textLines")
+                .sentence(phrase)
+                //.matching(phrase)
+                .createQuery();
+        FullTextQuery jpaQuery = fullTextEntityManager.createFullTextQuery(query,Line.class);
+        jpaQuery.setFirstResult(firstResult);
+        jpaQuery.setMaxResults(maxResults);
+        jpaQuery.setSort(Sort.RELEVANCE);
+        return jpaQuery.getResultList();
     }
 }

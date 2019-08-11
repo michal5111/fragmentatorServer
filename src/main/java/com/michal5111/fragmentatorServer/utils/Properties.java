@@ -14,4 +14,8 @@ public class Properties {
     private String videoCache;
     @NotEmpty
     private String imageCache;
+    @NotEmpty
+    private String conversionVideoFormat;
+    @NotEmpty
+    private String conversionAudioFormat;
 }

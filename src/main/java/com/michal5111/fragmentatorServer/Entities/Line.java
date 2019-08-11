@@ -2,6 +2,9 @@ package com.michal5111.fragmentatorServer.Entities;
 
 import com.fasterxml.jackson.annotation.*;
 import lombok.*;
+import org.hibernate.search.annotations.Field;
+import org.hibernate.search.annotations.Indexed;
+import org.hibernate.search.annotations.TermVector;
 
 import javax.persistence.*;
 import java.io.Serializable;
@@ -13,6 +16,8 @@ import java.time.format.DateTimeFormatter;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@Indexed
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Table(indexes = {@Index(columnList = "textLines"),@Index(columnList = "subtitles_id")})
 public class Line implements Serializable {
     @Id
@@ -28,6 +33,7 @@ public class Line implements Serializable {
     @JsonIgnore
     @Column(columnDefinition = "TIME(3)")
     private LocalTime timeTo;
+    @Field(termVector = TermVector.YES)
     @Lob
     @Column(length = 4096, nullable = false)
     private String textLines;
