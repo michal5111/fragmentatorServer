@@ -28,10 +28,7 @@ import javax.persistence.PersistenceContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @org.springframework.web.bind.annotation.RestController
 @RequestMapping("api")
@@ -163,8 +160,8 @@ public class RestController {
 //    }
 
     @GetMapping("updateDatabase")
-    public List<Movie> updateDatabase() throws IOException {
-        return updateDatabase();
+    public List<Movie> updateDatabase() throws IOException, InterruptedException {
+        return databaseService.updateDatabase();
     }
 
     @GetMapping("/lineHints")
@@ -199,10 +196,7 @@ public class RestController {
 
     @GetMapping("/updateIndex")
     public String updateIndex() throws InterruptedException {
-        FullTextEntityManager fullTextEntityManager
-                = Search.getFullTextEntityManager(entityManager);
-        fullTextEntityManager.createIndexer().startAndWait();
-        return "Success";
+        return databaseService.updateIndex();
     }
 
     @GetMapping("/searchPhrase")
@@ -254,5 +248,18 @@ public class RestController {
         jpaQuery.setMaxResults(maxResults);
         jpaQuery.setSort(Sort.RELEVANCE);
         return jpaQuery.getResultList();
+    }
+
+    @GetMapping("/linesnapshot2")
+    public String getLineSnapshot(@RequestParam("lineId") Long lineId, HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException, MovieNotFoundException {
+        Optional<Line> optionalLine = lineRepository.findById(lineId);
+        if (optionalLine.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
+        Line line = optionalLine.get();
+        Movie movie = line.getSubtitles().getMovie();
+        movie.getSubtitles().getFilteredLines().add(line);
+        //Hibernate.initialize(movie);
+        return "{\"url\":\"http://" + request.getServerName() + ":" + request.getServerPort() + "/snapshots/" + converterService.getSnapshot(movie) + "\"}";
     }
 }

@@ -14,13 +14,14 @@ import java.util.Scanner;
 public class SRTSubtitles extends Subtitles {
 
     public boolean parse() throws FileNotFoundException {
-        Scanner scanner = new Scanner(this.subtitleFile).skip("(ď»ż|\uFEFF|˙ţ|\r)?").useDelimiter("(\n\n|\r\n\r\n)");
+        Scanner scanner = new Scanner(this.subtitleFile).useDelimiter("(\n\n|\r\n\r\n)");
         while (scanner.hasNext()) {
             String scannedString = scanner.next();
             String[] splitString = scannedString.split("\n");
             if (splitString.length < 3) {
                 continue;
             }
+            splitString[0] = splitString[0].replaceAll("(ď»ż|\uFEFF|˙ţ|\n)?", "");
             Line line = new Line();
             int number = 0;
             try {

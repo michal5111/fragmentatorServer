@@ -78,7 +78,7 @@ public class ConverterService {
 
     public String getSnapshot(Movie movie) throws IOException, InterruptedException, MovieNotFoundException {
         Line line = movie.getSubtitles().getFilteredLines().get(0);
-        File file = new File("/home/michal/Obrazy/SpringFragmenterCache/"+nameGenerator(movie)+".jpg");
+        File file = new File("/var/cache/fragmenter/SpringFragmenterCache/"+nameGenerator(movie)+".jpg");
         if (file.exists()) {
             return nameGenerator(movie)+".jpg";
         }
@@ -95,7 +95,7 @@ public class ConverterService {
                 "-i", movie.getPath()+File.separator+movie.getFileName()+movie.getExtension(),
                 "-vf","subtitles="+tempSubtitles.getPath(),
                 "-frames:v", "1",
-                "/home/michal/Obrazy/SpringFragmenterCache/"+nameGenerator(movie)+".jpg"
+                "/var/cache/fragmenter/SpringFragmenterCache/"+nameGenerator(movie)+".jpg"
         );
         Process process = processBuilder.start();
         process.waitFor();
@@ -123,7 +123,7 @@ public class ConverterService {
 //                "-acodec", "copy",
 //                "-vcodec", "h264",
 //                "-preset", "veryslow",
-//                "/home/michal/Wideo/SpringFragmenterCache/"+nameGenerator(movie)+".mp4"
+//                "/var/cache/fragmenter/SpringFragmenterCache/"+nameGenerator(movie)+".mp4"
 //        );
 //        Process process = processBuilder.start();
 //        return movie.getFileName()+line.getNumber();
@@ -133,7 +133,7 @@ public class ConverterService {
 
         String fragmentName = nameGenerator(movie) + ".mp4";
 
-        Path fragmentPath = Path.of("/home/michal/Wideo/SpringFragmenterCache/"+fragmentName);
+        Path fragmentPath = Path.of("/var/cache/fragmenter/SpringFragmenterCache/"+fragmentName);
         if (fragmentPath.toFile().exists()) {
             logger.debug("File exist");
             return Flux.create(emitter -> {
@@ -141,7 +141,7 @@ public class ConverterService {
                 emitter.complete();
             });
         } else {
-            logger.debug("File not exist"+"/home/michal/Wideo/SpringFragmenterCache/"+File.separator+fragmentName);
+            logger.debug("File not exist"+"/var/cache/fragmenter/SpringFragmenterCache/"+File.separator+fragmentName);
         }
 
         Line line = movie.getSubtitles().getFilteredLines().get(0);
@@ -165,7 +165,7 @@ public class ConverterService {
                 "-vcodec", "h264",
                 "-preset", "veryslow",
                 "-vf", "subtitles="+tempSubtitles.getPath(),
-                "/home/michal/Wideo/SpringFragmenterCache/"+fragmentName
+                "/var/cache/fragmenter/SpringFragmenterCache/"+fragmentName
         );
         processBuilder.redirectErrorStream(true);
 
@@ -177,7 +177,7 @@ public class ConverterService {
         final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
         Stream<String> stringStream = reader.lines().peek(s -> {
             if (s.contains("Conversion failed!")) {
-                File fragmentFile = new File("/home/michal/Wideo/SpringFragmenterCache/"+fragmentName);
+                File fragmentFile = new File("/var/cache/fragmenter/SpringFragmenterCache/"+fragmentName);
                 fragmentFile.delete();
                 throw new IllegalStateException("Conversion failed!");
             }
@@ -201,7 +201,7 @@ public class ConverterService {
 
         String fragmentName = nameGenerator(movie) + ".mp4";
 
-        Path fragmentPath = Path.of("/home/michal/Wideo/SpringFragmenterCache/"+fragmentName);
+        Path fragmentPath = Path.of("/var/cache/fragmenter/SpringFragmenterCache/"+fragmentName);
         if (fragmentPath.toFile().exists()) {
             logger.debug("File exist");
             return Flux.create(emmiter -> {
@@ -209,7 +209,7 @@ public class ConverterService {
                 emmiter.complete();
             });
         } else {
-            logger.debug("File not exist"+"/home/michal/Wideo/SpringFragmenterCache/"+File.separator+fragmentName);
+            logger.debug("File not exist"+"/var/cache/fragmenter/SpringFragmenterCache/"+File.separator+fragmentName);
         }
 
         Line firstLine = movie.getSubtitles().getFilteredLines().get(0);
@@ -247,7 +247,7 @@ public class ConverterService {
                 "-vcodec", "h264",
                 "-preset", "veryslow",
                 "-vf", "subtitles=/tmp/temp.srt",
-                "/home/michal/Wideo/SpringFragmenterCache/"+fragmentName
+                "/var/cache/fragmenter/SpringFragmenterCache/"+fragmentName
         );
         processBuilder.redirectErrorStream(true);
 
@@ -255,7 +255,7 @@ public class ConverterService {
         final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
         Stream<String> stringStream = reader.lines().peek(s -> {
             if (s.contains("Conversion failed!")) {
-                File fragmentFile = new File("/home/michal/Wideo/SpringFragmenterCache/"+fragmentName);
+                File fragmentFile = new File("/var/cache/fragmenter/SpringFragmenterCache/"+fragmentName);
                 fragmentFile.delete();
                 throw new IllegalStateException("Conversion failed!");
             }
