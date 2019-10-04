@@ -24,4 +24,6 @@ public interface LineRepository extends CrudRepository<Line, Long> {
     List<Line> findAllBySubtitles_Movie_IdAndTextLinesContainingIgnoreCase(Long movieId, String phrase);
 
     List<Line> findAllBySubtitles_Movie_Id(@Param("p_movie_id") Long movieId);
+
+    List<Line> findAllByIdBetween(Long startId, Long stopId);
 }

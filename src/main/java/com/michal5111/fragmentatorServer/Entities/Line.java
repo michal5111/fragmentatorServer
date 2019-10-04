@@ -10,6 +10,7 @@ import javax.persistence.*;
 import java.io.Serializable;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @Entity
 @Builder
@@ -61,4 +62,16 @@ public class Line implements Serializable {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private Subtitles subtitles;
+
+    @JsonIgnore
+    @OneToOne(mappedBy = "line")
+    private LineEdit lineEdit;
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "startLine")
+    private List<FragmentRequest> startLineFragmentRequests;
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "stopLine")
+    private List<FragmentRequest> stopLineFragmentRequests;
 }

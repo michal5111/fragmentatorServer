@@ -1,16 +1,15 @@
 package com.michal5111.fragmentatorServer.Controllers;
 
-import com.michal5111.fragmentatorServer.Entities.Line;
-import com.michal5111.fragmentatorServer.Entities.Movie;
-import com.michal5111.fragmentatorServer.Entities.SRTSubtitles;
-import com.michal5111.fragmentatorServer.Entities.Subtitles;
+import com.michal5111.fragmentatorServer.Entities.*;
 import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
+import com.michal5111.fragmentatorServer.repositories.FragmentRequestRepository;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
 import com.michal5111.fragmentatorServer.repositories.MovieRepository;
 import com.michal5111.fragmentatorServer.repositories.SubtitlesRepository;
 import com.michal5111.fragmentatorServer.services.ConverterService;
 import com.michal5111.fragmentatorServer.services.DatabaseService;
 import com.michal5111.fragmentatorServer.utils.Utils;
+import lombok.val;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.hibernate.search.jpa.FullTextEntityManager;
@@ -46,15 +45,18 @@ public class RestController {
 
     private final DatabaseService databaseService;
 
+    private final FragmentRequestRepository fragmentRequestRepository;
+
     @PersistenceContext
     private EntityManager entityManager;
 
-    public RestController(ConverterService converterService, MovieRepository movieRepository, SubtitlesRepository subtitlesRepository, LineRepository lineRepository, DatabaseService databaseService) {
+    public RestController(ConverterService converterService, MovieRepository movieRepository, SubtitlesRepository subtitlesRepository, LineRepository lineRepository, DatabaseService databaseService, FragmentRequestRepository fragmentRequestRepository) {
         this.converterService = converterService;
         this.movieRepository = movieRepository;
         this.subtitlesRepository = subtitlesRepository;
         this.lineRepository = lineRepository;
         this.databaseService = databaseService;
+        this.fragmentRequestRepository = fragmentRequestRepository;
     }
 
     @GetMapping("/test")
@@ -63,16 +65,24 @@ public class RestController {
         return "";
     }
 
-    @PostMapping("/linesnapshot")
-    public String getLineSnapshot(@RequestBody() Movie movie, HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException, MovieNotFoundException {
-        return "{\"url\":\"http://" + request.getServerName() + ":" + request.getServerPort() + "/snapshots/" + converterService.getSnapshot(movie) + "\"}";
+    @PostMapping("/fragmentRequest")
+    public FragmentRequest createFragmentRequest(@RequestBody FragmentRequest fragmentRequest) {
+        return fragmentRequestRepository.save(fragmentRequest);
     }
 
-//    @PostMapping("/fragment")
-//    public String getfragment(@RequestBody() Movie movie, HttpServletRequest request) throws IOException, MovieNotFoundException {
-//        return "{\"url\":\"http://" + request.getServerName() + ":" + request.getServerPort() + "/fragments/"
-//                + converterService.generateFragmentLink(movie) + "\"}";
-//    }
+    @GetMapping(path = "/fragmentRequest/{id}")
+    public Flux<ServerSentEvent<String>> requestFragment(@PathVariable("id") Long fragmentRequestId,
+                                                         HttpServletRequest request) throws IOException, MovieNotFoundException {
+        Optional<FragmentRequest> optionalFragmentRequest = fragmentRequestRepository.findById(fragmentRequestId);
+        if (optionalFragmentRequest.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
+        FragmentRequest fragmentRequest = optionalFragmentRequest.get();
+        List<Line> lines = lineRepository.findAllByIdBetween(fragmentRequest.getStartLine().getId(), fragmentRequest.getStopLine().getId());
+        logger.info("Request for: " + fragmentRequest.getMovie() + " "
+                + fragmentRequest.getStartLine().getTextLines());
+        return converterService.convertFragment(fragmentRequest, lines);
+    }
 
     @GetMapping(path = "/requestFragment")
     public Flux<ServerSentEvent<String>> requestFragment(@RequestParam String fileName,
@@ -141,23 +151,6 @@ public class RestController {
                 .build();
         return converterService.convertDialog(movie);
     }
-
-//    @GetMapping("/buildDatabase")
-//    public List<Movie> buildDatabase() throws IOException {
-//        List<Movie> movieList = Utils.findMovies().peek(movie -> {
-//            movie.getSubtitles().getLines().forEach(Line::parseTime);
-//            try {
-//                movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath()),movie.getFileName()));
-//                movie.getSubtitles().parse();
-//            } catch (Exception e) {
-//                logger.error(movie.getPath()+"/"+movie.getFileName());
-//                logger.error(movie.getSubtitles().getFilename());
-//                logger.error(String.valueOf(movie.getSubtitles().getLines().size()));
-//                e.printStackTrace();
-//            }
-//        }).collect(Collectors.toList());
-//        return movieRepository.saveAll(movieList);
-//    }
 
     @GetMapping("updateDatabase")
     public List<Movie> updateDatabase() throws IOException, InterruptedException {
@@ -250,16 +243,13 @@ public class RestController {
         return jpaQuery.getResultList();
     }
 
-    @GetMapping("/linesnapshot2")
+    @GetMapping("/lineSnapshot")
     public String getLineSnapshot(@RequestParam("lineId") Long lineId, HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException, MovieNotFoundException {
         Optional<Line> optionalLine = lineRepository.findById(lineId);
         if (optionalLine.isEmpty()) {
             throw new IllegalArgumentException();
         }
         Line line = optionalLine.get();
-        Movie movie = line.getSubtitles().getMovie();
-        movie.getSubtitles().getFilteredLines().add(line);
-        //Hibernate.initialize(movie);
-        return "{\"url\":\"http://" + request.getServerName() + ":" + request.getServerPort() + "/snapshots/" + converterService.getSnapshot(movie) + "\"}";
+        return "{\"url\":\"http://" + request.getServerName() + ":" + request.getServerPort() + "/fragmentatorServer/snapshots/" + converterService.getSnapshot(line) + "\"}";
     }
 }

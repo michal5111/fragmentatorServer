@@ -14,9 +14,9 @@ public class FragmentatorServerApplication implements WebMvcConfigurer {
 
 	@Override
 	public void addResourceHandlers(ResourceHandlerRegistry registry) {
-		registry.addResourceHandler("/snapshots/**").addResourceLocations("file:////home/michal/Obrazy/SpringFragmenterCache/")
+		registry.addResourceHandler("/snapshots/**").addResourceLocations("file:////var/cache/fragmenter/SpringFragmenterCache/")
 				.setCachePeriod(0);
-		registry.addResourceHandler("/fragments/**").addResourceLocations("file:////home/michal/Wideo/SpringFragmenterCache/")
+		registry.addResourceHandler("/fragments/**").addResourceLocations("file:////var/cache/fragmenter/SpringFragmenterCache/")
 				.setCachePeriod(0);
 	}
 
