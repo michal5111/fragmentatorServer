@@ -17,9 +17,11 @@ public class Properties {
         @NotEmpty
         private String imageCache;
         @NotEmpty
+        private String conversionVideoCodec;
+        @NotEmpty
+        private String conversionAudioCodec;
+        @NotEmpty
         private String conversionVideoFormat;
         @NotEmpty
-        private String conversionAudioFormat;
-        @NotEmpty
-        private String srtCache;
+        private String conversionImageFormat;
 }

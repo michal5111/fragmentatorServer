@@ -103,9 +103,9 @@ public class ConverterService {
     public String getSnapshot(Line line) throws IOException, InterruptedException, MovieNotFoundException {
         Movie movie = line.getSubtitles().getMovie();
         String filename = nameGenerator(movie, Collections.singletonList(line));
-        File file = new File(properties.getImageCache() + File.separator + filename+".jpg");
+        File file = new File(properties.getImageCache() + File.separator + filename+"."+properties.getConversionImageFormat());
         if (file.exists()) {
-            return filename+".jpg";
+            return filename+"."+properties.getConversionImageFormat();
         }
         movie.setExtension(getMovieExtension(Paths.get(movie.getPath()),movie.getFileName()));
         String timeString = dateTimeFormatter.format(line.getTimeFrom());
@@ -119,7 +119,7 @@ public class ConverterService {
                 "-i", movie.getPath()+File.separator+movie.getFileName()+movie.getExtension(),
                 "-vf","subtitles="+tempSubtitles.getPath(),
                 "-frames:v", "1",
-                properties.getImageCache() + File.separator + filename+".jpg"
+                properties.getImageCache() + File.separator + filename+"."+properties.getConversionImageFormat()
         );
         Process process = processBuilder.start();
         final BufferedReader snapshotReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
@@ -127,12 +127,12 @@ public class ConverterService {
         process.waitFor();
         logger.debug("Exit value: "+ process.exitValue());
         tempSubtitles.delete();
-        return filename+".jpg";
+        return filename+"."+properties.getConversionImageFormat();
     }
 
     public Flux<ServerSentEvent<String>> convertFragment(FragmentRequest fragmentRequest, List<Line> lines) throws IOException, MovieNotFoundException {
         Movie movie = fragmentRequest.getMovie();
-        String fragmentName = nameGenerator(fragmentRequest, lines) + ".mp4";
+        String fragmentName = nameGenerator(fragmentRequest, lines) + "." + properties.getConversionVideoFormat();
         String fragmentPathString = properties.getVideoCache() + File.separator +fragmentName;
         Path fragmentPath = Path.of(fragmentPathString);
 
@@ -186,11 +186,11 @@ public class ConverterService {
                 "ffmpeg",
                 "-y",
                 "-ss", timeString2,
-                "-i", movie.getPath()+"/"+movie.getFileName()+movie.getExtension(),
+                "-i", movie.getPath()+File.separator+movie.getFileName()+movie.getExtension(),
                 "-ss", "00:00:01",
                 "-t", String.format(Locale.US, "%.3f", to),
-                "-acodec", "aac",
-                "-vcodec", "h264",
+                "-acodec", properties.getConversionAudioCodec(),
+                "-vcodec", properties.getConversionVideoCodec(),
                 "-preset", "veryslow",
                 "-vf", "subtitles=" + tempSubtitlesFile.getPath(),
                 properties.getVideoCache() + File.separator + fragmentName
@@ -221,7 +221,9 @@ public class ConverterService {
                 .map(s -> ServerSentEvent.builder(s).event("log").data(s).id("1").build());
         Flux<ServerSentEvent<String>> complete = Flux.create(emmiter -> {
             fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
+            fragmentRequest.setResultFileName(fragmentName);
             fragmentRequestRepository.save(fragmentRequest);
+            tempSubtitlesFile.delete();
             emmiter.next(ServerSentEvent.<String>builder().event("complete").id("2").data(fragmentName).build());
             emmiter.complete();
         });
