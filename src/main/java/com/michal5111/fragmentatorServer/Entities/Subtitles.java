@@ -2,10 +2,7 @@ package com.michal5111.fragmentatorServer.Entities;
 
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import javax.persistence.*;
 import java.io.File;
@@ -34,10 +31,10 @@ public class Subtitles implements Serializable {
     @JsonIgnore
     @OneToMany(mappedBy = "subtitles", cascade = CascadeType.ALL)
     protected List<Line> lines = new LinkedList<>();
-    @Transient
-    @JsonInclude
-    @EqualsAndHashCode.Exclude
-    protected List<Line> filteredLines = new LinkedList<>();
+//    @Transient
+//    @JsonInclude
+//    @EqualsAndHashCode.Exclude
+//    protected List<Line> filteredLines = new LinkedList<>();
 
     public boolean parse() throws FileNotFoundException {
         return false;
@@ -45,8 +42,9 @@ public class Subtitles implements Serializable {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn
-    @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
-    @JsonIdentityReference(alwaysAsId = true)
+//    @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+//    @JsonIdentityReference(alwaysAsId = true)
+    @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private Movie movie;
 }

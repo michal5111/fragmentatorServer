@@ -1,9 +1,6 @@
 package com.michal5111.fragmentatorServer.Entities;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.*;
 import lombok.*;
 import org.hibernate.search.annotations.Field;
 import org.hibernate.search.annotations.Indexed;
@@ -25,6 +22,8 @@ public class Movie {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Exclude
     private Long id;
+    @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+    @JsonIdentityReference(alwaysAsId = true)
     @OneToOne(mappedBy = "movie",cascade = CascadeType.ALL)
     private Subtitles subtitles;
     @Field(termVector = TermVector.YES)
@@ -34,14 +33,6 @@ public class Movie {
     @Column(nullable = false)
     private String path;
     private String extension;
-    @Transient
-    @JsonInclude
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    private double startOffset;
-    @Transient
-    @JsonInclude
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    private double stopOffset;
 
     @JsonIgnore
     @ToString.Exclude

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.michal5111.fragmentatorServer.deserializers.LineIdDeserializer;
 import com.michal5111.fragmentatorServer.deserializers.MovieIdDeserializer;
+import com.michal5111.fragmentatorServer.enums.FragmentRequestStatus;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -13,6 +14,8 @@ import java.util.List;
 
 @Entity
 @Data
+@EqualsAndHashCode
+@ToString
 public class FragmentRequest {
 
     @Id
@@ -31,7 +34,8 @@ public class FragmentRequest {
 
     private Double stopOffset;
 
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private FragmentRequestStatus status;
 
     private String errorMessage;
 

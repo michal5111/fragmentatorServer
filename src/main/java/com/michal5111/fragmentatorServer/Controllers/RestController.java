@@ -1,6 +1,8 @@
 package com.michal5111.fragmentatorServer.Controllers;
 
-import com.michal5111.fragmentatorServer.Entities.*;
+import com.michal5111.fragmentatorServer.Entities.FragmentRequest;
+import com.michal5111.fragmentatorServer.Entities.Line;
+import com.michal5111.fragmentatorServer.Entities.Movie;
 import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 import com.michal5111.fragmentatorServer.repositories.FragmentRequestRepository;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
@@ -9,7 +11,6 @@ import com.michal5111.fragmentatorServer.repositories.SubtitlesRepository;
 import com.michal5111.fragmentatorServer.services.ConverterService;
 import com.michal5111.fragmentatorServer.services.DatabaseService;
 import com.michal5111.fragmentatorServer.utils.Utils;
-import lombok.val;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.hibernate.search.jpa.FullTextEntityManager;
@@ -27,7 +28,8 @@ import javax.persistence.PersistenceContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
 
 @org.springframework.web.bind.annotation.RestController
 @RequestMapping("api")
@@ -79,77 +81,9 @@ public class RestController {
         }
         FragmentRequest fragmentRequest = optionalFragmentRequest.get();
         List<Line> lines = lineRepository.findAllByIdBetween(fragmentRequest.getStartLine().getId(), fragmentRequest.getStopLine().getId());
-        logger.info("Request for: " + fragmentRequest.getMovie() + " "
+        logger.info("Request for: " + fragmentRequest.getMovie().getFileName() + " "
                 + fragmentRequest.getStartLine().getTextLines());
         return converterService.convertFragment(fragmentRequest, lines);
-    }
-
-    @GetMapping(path = "/requestFragment")
-    public Flux<ServerSentEvent<String>> requestFragment(@RequestParam String fileName,
-                                                         @RequestParam String line,
-                                                         @RequestParam String timeString,
-                                                         @RequestParam String path,
-                                                         @RequestParam Integer lineNumber,
-                                                         @RequestParam Double startOffset,
-                                                         @RequestParam Double stopOffset,
-                                                         @RequestParam String subtitlesFileName,
-                                                         HttpServletRequest request) throws IOException, MovieNotFoundException {
-        logger.info("Request for: " + fileName + " " + line);
-        logger.debug("Params: fileName: " + fileName
-                + "\nline: " + line
-                + "\ntimeString: " + timeString
-                + "\npath: " + path
-                + "\nlineNumber: " + lineNumber
-                + "\nstartOffset: " + startOffset
-                + "\nstopOffset: " + stopOffset
-                + "\nsubtitlesFileName: " + subtitlesFileName);
-        Line line1 = Line.builder()
-                .number(lineNumber)
-                .timeString(timeString)
-                .textLines(line)
-                .build();
-        Subtitles subtitles = new SRTSubtitles();
-        subtitles.setFilename(subtitlesFileName);
-        subtitles.setFilteredLines(List.of(line1));
-        Movie movie = Movie.builder()
-                .fileName(fileName)
-                .path(path)
-                .subtitles(subtitles)
-                .startOffset(startOffset)
-                .stopOffset(stopOffset)
-                .build();
-        return converterService.convertFragment(movie);
-    }
-
-    @GetMapping(path = "/dialog")
-    public Flux<ServerSentEvent<String>> requestDialog(@RequestParam String fileName,
-                                                       @RequestParam List<String> line,
-                                                       @RequestParam List<String> timeString,
-                                                       @RequestParam String path,
-                                                       @RequestParam List<Integer> lineNumber,
-                                                       @RequestParam Double startOffset,
-                                                       @RequestParam Double stopOffset,
-                                                       @RequestParam String subtitlesFileName,
-                                                       HttpServletRequest request) throws IOException, MovieNotFoundException {
-        List<Line> linesList = new LinkedList<>();
-        for (int i = 0; i < line.size(); i++) {
-            Line tempLine = new Line();
-            tempLine.setNumber(lineNumber.get(i));
-            tempLine.setTextLines(line.get(i));
-            tempLine.setTimeString(timeString.get(i));
-            linesList.add(tempLine);
-        }
-        Subtitles subtitles = new SRTSubtitles();
-        subtitles.setFilename(path+"/"+subtitlesFileName);
-        subtitles.setFilteredLines(linesList);
-        Movie movie = Movie.builder()
-                .fileName(fileName)
-                .path(path)
-                .subtitles(subtitles)
-                .startOffset(startOffset)
-                .stopOffset(stopOffset)
-                .build();
-        return converterService.convertDialog(movie);
     }
 
     @GetMapping("updateDatabase")
@@ -166,11 +100,6 @@ public class RestController {
     public List<Movie> getTitleHints(@RequestParam("title") String title) {
         return movieRepository.findTitleHints(title);
     }
-
-//    @GetMapping("/searchPhrase")
-//    public List<Movie> getMovieSQL(@RequestParam("phrase") String phrase) {
-//        return movieRepository.findMoviesByPhrase(phrase);
-//    }
 
     @GetMapping("/searchMovie")
     public List<Movie> getMovieByTitleSQL(@RequestParam("title") String title) {
@@ -192,36 +121,37 @@ public class RestController {
         return databaseService.updateIndex();
     }
 
-    @GetMapping("/searchPhrase")
-    public Set<Movie> searchLineIndexed(@RequestParam("phrase") String phrase) {
-        FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
-        QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()
-                .buildQueryBuilder()
-                .forEntity(Line.class)
-                .get();
-        Query query = queryBuilder
-                .phrase()
-                .withSlop(2)
-                //.simpleQueryString()
-                .onField("textLines")
-                .sentence(phrase)
-                //.matching(phrase)
-                .createQuery();
-        FullTextQuery jpaQuery = fullTextEntityManager.createFullTextQuery(query,Line.class);
-        //jpaQuery.setMaxResults(100);
-        jpaQuery.setSort(Sort.RELEVANCE);
-        List<Line> resultList = jpaQuery.getResultList();
-        Set<Movie> movieSet = new HashSet<>();
-        resultList.forEach(line -> {
-            Subtitles subtitles = line.getSubtitles();
-            subtitles.getFilteredLines().add(line);
-            Movie movie = subtitles.getMovie();
-            movieSet.add(movie);
-        });
-        return movieSet;
-    }
+//    @GetMapping("/searchPhrase")
+//    public Set<SearchPhraseResponse> searchLineIndexed(@RequestParam("phrase") String phrase) {
+//        FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
+//        QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()
+//                .buildQueryBuilder()
+//                .forEntity(Line.class)
+//                .get();
+//        Query query = queryBuilder
+//                .phrase()
+//                .withSlop(2)
+//                //.simpleQueryString()
+//                .onField("textLines")
+//                .sentence(phrase)
+//                //.matching(phrase)
+//                .createQuery();
+//        FullTextQuery jpaQuery = fullTextEntityManager.createFullTextQuery(query,Line.class);
+//        //jpaQuery.setMaxResults(100);
+//        jpaQuery.setSort(Sort.RELEVANCE);
+//        List<Line> resultList = jpaQuery.getResultList();
+//        Set<SearchPhraseResponse> searchPhraseResponses = new HashSet<>();
+//        resultList.forEach(line -> {
+//            SearchPhraseResponse searchPhraseResponse = new SearchPhraseResponse();
+//            Subtitles subtitles = line.getSubtitles();
+//            Movie movie = subtitles.getMovie();
+//            searchPhraseResponse.setMovie(movie);
+//            searchPhraseResponses.add(movie);
+//        });
+//        return searchPhraseResponses;
+//    }
 
-    @GetMapping("/searchPhrase2")
+    @GetMapping("/searchPhrase")
     public List searchLineIndexed2(@RequestParam("phrase") String phrase, @RequestParam("firstResult") int firstResult, @RequestParam("maxResults") int maxResults) {
         FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
         QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()

@@ -55,8 +55,8 @@ public class Line implements Serializable {
         return true;
     }
 
-    @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
-    @JsonIdentityReference(alwaysAsId = true)
+//    @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+//    @JsonIdentityReference(alwaysAsId = true)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "subtitles_id", nullable = false, referencedColumnName = "id")
     @ToString.Exclude
@@ -64,14 +64,20 @@ public class Line implements Serializable {
     private Subtitles subtitles;
 
     @JsonIgnore
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @OneToOne(mappedBy = "line")
     private LineEdit lineEdit;
 
     @JsonIgnore
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "startLine")
     private List<FragmentRequest> startLineFragmentRequests;
 
     @JsonIgnore
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "stopLine")
     private List<FragmentRequest> stopLineFragmentRequests;
 }
