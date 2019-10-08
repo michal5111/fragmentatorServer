@@ -106,8 +106,8 @@ public class ConverterService {
                 tempSubtitlesFile.getPath()
         );
         Process subtitleProcess = subtitlesProcessBuilder.redirectErrorStream(true).start();
-        final BufferedReader SubtitleReader = new BufferedReader(new InputStreamReader(subtitleProcess.getInputStream()));
-        SubtitleReader.lines().forEach(line -> logger.debug(line));
+        final BufferedReader subtitleReader = new BufferedReader(new InputStreamReader(subtitleProcess.getInputStream()));
+        subtitleReader.lines().forEach(line -> logger.debug(line));
         subtitleProcess.waitFor();
         logger.debug("Done converting subtitles. Exit status: " + subtitleProcess.exitValue());
         if (subtitleProcess.exitValue() != 0) {
@@ -116,6 +116,7 @@ public class ConverterService {
             fragmentRequestRepository.save(fragmentRequest);
             throw new IllegalStateException("Error in conversion of subtitles!");
         }
+        subtitleReader.close();
         return tempSubtitlesFile;
     }
 
@@ -170,6 +171,7 @@ public class ConverterService {
         process.waitFor();
         logger.debug("Exit value: "+ process.exitValue());
         tempSubtitles.delete();
+        snapshotReader.close();
         return filename+"."+properties.getConversionImageFormat();
     }
 
@@ -219,6 +221,11 @@ public class ConverterService {
                 fragmentRequest.setErrorMessage("Conversion failed!");
                 fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
                 fragmentRequestRepository.save(fragmentRequest);
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
                 throw new IllegalStateException("Conversion failed!");
             }
         });
@@ -234,6 +241,11 @@ public class ConverterService {
             fragmentRequest.setResultFileName(fragmentName);
             fragmentRequestRepository.save(fragmentRequest);
             tempSubtitlesFile.delete();
+            try {
+                reader.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
             emmiter.next(ServerSentEvent.<String>builder().event("complete").id("2").data(fragmentName).build());
             emmiter.complete();
         });
