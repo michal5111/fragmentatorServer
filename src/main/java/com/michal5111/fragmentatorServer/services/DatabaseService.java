@@ -1,7 +1,7 @@
 package com.michal5111.fragmentatorServer.services;
 
-import com.michal5111.fragmentatorServer.Entities.Line;
-import com.michal5111.fragmentatorServer.Entities.Movie;
+import com.michal5111.fragmentatorServer.domain.Line;
+import com.michal5111.fragmentatorServer.domain.Movie;
 import com.michal5111.fragmentatorServer.repositories.MovieRepository;
 import com.michal5111.fragmentatorServer.utils.Utils;
 import org.hibernate.search.jpa.FullTextEntityManager;
@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import java.io.FileNotFoundException;

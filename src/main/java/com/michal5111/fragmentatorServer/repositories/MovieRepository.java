@@ -1,6 +1,6 @@
 package com.michal5111.fragmentatorServer.repositories;
 
-import com.michal5111.fragmentatorServer.Entities.Movie;
+import com.michal5111.fragmentatorServer.domain.Movie;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

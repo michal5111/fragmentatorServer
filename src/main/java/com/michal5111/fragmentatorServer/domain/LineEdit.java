@@ -1,4 +1,4 @@
-package com.michal5111.fragmentatorServer.Entities;
+package com.michal5111.fragmentatorServer.domain;
 
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonIdentityReference;

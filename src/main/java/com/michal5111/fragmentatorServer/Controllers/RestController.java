@@ -1,8 +1,10 @@
 package com.michal5111.fragmentatorServer.Controllers;
 
-import com.michal5111.fragmentatorServer.Entities.FragmentRequest;
-import com.michal5111.fragmentatorServer.Entities.Line;
-import com.michal5111.fragmentatorServer.Entities.Movie;
+import com.michal5111.fragmentatorServer.domain.FragmentRequest;
+import com.michal5111.fragmentatorServer.domain.Line;
+import com.michal5111.fragmentatorServer.domain.Movie;
+import com.michal5111.fragmentatorServer.exceptions.FragmentRequestNotFoundException;
+import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 import com.michal5111.fragmentatorServer.repositories.FragmentRequestRepository;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
@@ -28,7 +30,9 @@ import javax.persistence.PersistenceContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @org.springframework.web.bind.annotation.RestController
@@ -74,10 +78,10 @@ public class RestController {
 
     @GetMapping(path = "/fragmentRequest/{id}")
     public Flux<ServerSentEvent<String>> requestFragment(@PathVariable("id") Long fragmentRequestId,
-                                                         HttpServletRequest request) throws IOException, MovieNotFoundException {
+                                                         HttpServletRequest request) throws FragmentRequestNotFoundException, InterruptedException, MovieNotFoundException, IOException {
         Optional<FragmentRequest> optionalFragmentRequest = fragmentRequestRepository.findById(fragmentRequestId);
         if (optionalFragmentRequest.isEmpty()) {
-            throw new IllegalArgumentException();
+            throw new FragmentRequestNotFoundException("Fragment Request Not Found!");
         }
         FragmentRequest fragmentRequest = optionalFragmentRequest.get();
         List<Line> lines = lineRepository.findAllByIdBetween(fragmentRequest.getStartLine().getId(), fragmentRequest.getStopLine().getId());
@@ -174,12 +178,14 @@ public class RestController {
     }
 
     @GetMapping("/lineSnapshot")
-    public String getLineSnapshot(@RequestParam("lineId") Long lineId, HttpServletRequest request, HttpServletResponse response) throws IOException, InterruptedException, MovieNotFoundException {
+    public Map<String, String> getLineSnapshot(@RequestParam("lineId") Long lineId, HttpServletRequest request, HttpServletResponse response) throws LineNotFoundException, InterruptedException, MovieNotFoundException, IOException {
         Optional<Line> optionalLine = lineRepository.findById(lineId);
         if (optionalLine.isEmpty()) {
-            throw new IllegalArgumentException();
+            throw new LineNotFoundException("Line Not Found!");
         }
         Line line = optionalLine.get();
-        return "{\"url\":\"http://" + request.getServerName() + ":" + request.getServerPort() + "/fragmentatorServer/snapshots/" + converterService.getSnapshot(line) + "\"}";
+        Map<String, String> map = new HashMap<>();
+        map.put("url","http://" + request.getServerName() + ":" + request.getServerPort() + "/fragmentatorServer/snapshots/" + converterService.getSnapshot(line));
+        return map;
     }
 }

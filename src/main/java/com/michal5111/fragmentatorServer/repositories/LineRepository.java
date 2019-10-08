@@ -1,6 +1,6 @@
 package com.michal5111.fragmentatorServer.repositories;
 
-import com.michal5111.fragmentatorServer.Entities.Line;
+import com.michal5111.fragmentatorServer.domain.Line;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;

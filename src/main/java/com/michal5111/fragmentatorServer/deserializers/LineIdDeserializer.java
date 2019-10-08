@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.michal5111.fragmentatorServer.Entities.Line;
+import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 

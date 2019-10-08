@@ -1,4 +1,4 @@
-package com.michal5111.fragmentatorServer.Entities;
+package com.michal5111.fragmentatorServer.domain;
 
 import lombok.Builder;
 import lombok.Data;

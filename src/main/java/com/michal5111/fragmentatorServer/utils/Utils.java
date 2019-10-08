@@ -1,9 +1,9 @@
 package com.michal5111.fragmentatorServer.utils;
 
-import com.michal5111.fragmentatorServer.Entities.Line;
-import com.michal5111.fragmentatorServer.Entities.Movie;
-import com.michal5111.fragmentatorServer.Entities.SRTSubtitles;
-import com.michal5111.fragmentatorServer.Entities.Subtitles;
+import com.michal5111.fragmentatorServer.domain.Line;
+import com.michal5111.fragmentatorServer.domain.Movie;
+import com.michal5111.fragmentatorServer.domain.SRTSubtitles;
+import com.michal5111.fragmentatorServer.domain.Subtitles;
 import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 
 import java.io.BufferedWriter;

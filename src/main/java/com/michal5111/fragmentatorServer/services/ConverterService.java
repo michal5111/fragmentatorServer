@@ -1,8 +1,8 @@
 package com.michal5111.fragmentatorServer.services;
 
-import com.michal5111.fragmentatorServer.Entities.FragmentRequest;
-import com.michal5111.fragmentatorServer.Entities.Line;
-import com.michal5111.fragmentatorServer.Entities.Movie;
+import com.michal5111.fragmentatorServer.domain.FragmentRequest;
+import com.michal5111.fragmentatorServer.domain.Line;
+import com.michal5111.fragmentatorServer.domain.Movie;
 import com.michal5111.fragmentatorServer.enums.FragmentRequestStatus;
 import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 import com.michal5111.fragmentatorServer.repositories.FragmentRequestRepository;
@@ -71,30 +71,73 @@ public class ConverterService {
         return String.valueOf(stringBuilder.toString().hashCode());
     }
 
-    private ProcessBuilder prepareProcess(LocalTime timeFrom,
-                                          LocalTime timeTo,
-                                          String input,
-                                          File subtitles,
-                                          String output,
-                                          Double startOffset,
-                                          Double stopOffset) {
-        LocalTime timeF = timeFrom.minusSeconds(1)
-                .plusNanos((Double.valueOf(startOffset*1000000000.0)).longValue());
-        double timeT = Utils.calculateDuration(timeFrom,timeTo,startOffset,stopOffset);
+    private String getStartTimeString(FragmentRequest fragmentRequest) {
+        LocalTime time = fragmentRequest
+                .getStartLine()
+                .getTimeFrom()
+                .minusSeconds(1)
+                .plusNanos(
+                        (
+                                Double.valueOf(fragmentRequest.getStartOffset()*1000000000.0)
+                        ).longValue());
+        return dateTimeFormatter.format(time);
+    }
+
+    private Double getTimeLength(FragmentRequest fragmentRequest) {
+        return Utils.calculateDuration(
+                fragmentRequest.getStartLine().getTimeFrom(),
+                fragmentRequest.getStopLine().getTimeTo(),
+                fragmentRequest.getStartOffset(),
+                fragmentRequest.getStopOffset()
+        );
+    }
+
+    private File createTempSubtitles(FragmentRequest fragmentRequest,
+                                     String startTimeString) throws IOException, InterruptedException {
+        logger.debug("Converting subtitles...");
+        Movie movie = fragmentRequest.getMovie();
+        File tempSubtitlesFile = File.createTempFile("temp", ".srt");
+        ProcessBuilder subtitlesProcessBuilder = new ProcessBuilder();
+        subtitlesProcessBuilder.command(
+                "ffmpeg",
+                "-y",
+                "-i", movie.getPath()+ File.separator + movie.getSubtitles().getFilename(),
+                "-ss", startTimeString,
+                tempSubtitlesFile.getPath()
+        );
+        Process subtitleProcess = subtitlesProcessBuilder.redirectErrorStream(true).start();
+        final BufferedReader SubtitleReader = new BufferedReader(new InputStreamReader(subtitleProcess.getInputStream()));
+        SubtitleReader.lines().forEach(line -> logger.debug(line));
+        subtitleProcess.waitFor();
+        logger.debug("Done converting subtitles. Exit status: " + subtitleProcess.exitValue());
+        if (subtitleProcess.exitValue() != 0) {
+            fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
+            fragmentRequest.setErrorMessage("Error in conversion of subtitles!");
+            fragmentRequestRepository.save(fragmentRequest);
+            throw new IllegalStateException("Error in conversion of subtitles!");
+        }
+        return tempSubtitlesFile;
+    }
+
+    private ProcessBuilder prepareProcess(FragmentRequest fragmentRequest,
+                                          String startTimeString,
+                                          Double timeLength,
+                                          File tempSubtitlesFile,
+                                          String fragmentName) {
+        Movie movie = fragmentRequest.getMovie();
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.command(
                 "ffmpeg",
-                "-hide_banner",
                 "-y",
-                "-ss", dateTimeFormatter.format(timeF),
-                "-i", input,
+                "-ss", startTimeString,
+                "-i", movie.getPath()+File.separator+movie.getFileName()+movie.getExtension(),
                 "-ss", "00:00:01",
-                "-t", String.format(Locale.US, "%.3f", timeT),
-                "-acodec", "aac",
-                "-vcodec", "h264",
+                "-t", String.format(Locale.US, "%.3f", timeLength),
+                "-acodec", properties.getConversionAudioCodec(),
+                "-vcodec", properties.getConversionVideoCodec(),
                 "-preset", "veryslow",
-                "-vf", "subtitles="+subtitles.getPath(),
-                output
+                "-vf", "subtitles=" + tempSubtitlesFile.getPath(),
+                properties.getVideoCache() + File.separator + fragmentName
         );
         processBuilder.redirectErrorStream(true);
         return processBuilder;
@@ -130,11 +173,14 @@ public class ConverterService {
         return filename+"."+properties.getConversionImageFormat();
     }
 
-    public Flux<ServerSentEvent<String>> convertFragment(FragmentRequest fragmentRequest, List<Line> lines) throws IOException, MovieNotFoundException {
+    public Flux<ServerSentEvent<String>> convertFragment(FragmentRequest fragmentRequest, List<Line> lines) throws IOException, MovieNotFoundException, InterruptedException {
         Movie movie = fragmentRequest.getMovie();
         String fragmentName = nameGenerator(fragmentRequest, lines) + "." + properties.getConversionVideoFormat();
         String fragmentPathString = properties.getVideoCache() + File.separator +fragmentName;
         Path fragmentPath = Path.of(fragmentPathString);
+        String startTimeString = getStartTimeString(fragmentRequest);
+        Double timeLength = getTimeLength(fragmentRequest);
+        File tempSubtitlesFile = createTempSubtitles(fragmentRequest,startTimeString);
 
         if (fragmentPath.toFile().exists()) {
             logger.debug("File exist");
@@ -150,52 +196,16 @@ public class ConverterService {
 
         movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath()),movie.getFileName()));
         logger.debug("Movie extension: " + movie.getExtension());
-        LocalTime time = fragmentRequest.getStartLine().getTimeFrom().minusSeconds(1)
-                .plusNanos((Double.valueOf(fragmentRequest.getStartOffset()*1000000000.0)).longValue());
-        double to = Utils.calculateDuration(fragmentRequest.getStartLine().getTimeFrom(),fragmentRequest.getStopLine().getTimeTo(),fragmentRequest.getStartOffset(),fragmentRequest.getStopOffset());
-        logger.debug("Time lenght: " + to);
-        String timeString2 = dateTimeFormatter.format(time);
-        logger.debug("Start Time: " + timeString2);
-        logger.debug("Converting subtitles...");
-        File tempSubtitlesFile = File.createTempFile("temp", ".srt");
-        ProcessBuilder subtitlesProcessBuilder = new ProcessBuilder();
-        subtitlesProcessBuilder.command(
-                "ffmpeg",
-                "-y",
-                "-i", movie.getPath()+ File.separator + movie.getSubtitles().getFilename(),
-                "-ss", timeString2,
-                tempSubtitlesFile.getPath()
+        logger.debug("Time lenght: " + timeLength);
+        logger.debug("Start Time: " + startTimeString);
+
+        ProcessBuilder processBuilder = prepareProcess(
+                fragmentRequest,
+                startTimeString,
+                timeLength,
+                tempSubtitlesFile,
+                fragmentName
         );
-        Process subtitleProcess = subtitlesProcessBuilder.redirectErrorStream(true).start();
-        final BufferedReader SubtitleReader = new BufferedReader(new InputStreamReader(subtitleProcess.getInputStream()));
-        SubtitleReader.lines().forEach(line -> logger.debug(line));
-        try {
-            subtitleProcess.waitFor();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        logger.debug("Done converting subtitles. Exit status: " + subtitleProcess.exitValue());
-        if (subtitleProcess.exitValue() != 0) {
-            fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
-            fragmentRequest.setErrorMessage("Error in conversion of subtitles!");
-            fragmentRequestRepository.save(fragmentRequest);
-            throw new IllegalStateException("Error in conversion of subtitles!");
-        }
-        ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.command(
-                "ffmpeg",
-                "-y",
-                "-ss", timeString2,
-                "-i", movie.getPath()+File.separator+movie.getFileName()+movie.getExtension(),
-                "-ss", "00:00:01",
-                "-t", String.format(Locale.US, "%.3f", to),
-                "-acodec", properties.getConversionAudioCodec(),
-                "-vcodec", properties.getConversionVideoCodec(),
-                "-preset", "veryslow",
-                "-vf", "subtitles=" + tempSubtitlesFile.getPath(),
-                properties.getVideoCache() + File.separator + fragmentName
-        );
-        processBuilder.redirectErrorStream(true);
 
         fragmentRequest.setStatus(FragmentRequestStatus.CONVERTING);
         fragmentRequestRepository.save(fragmentRequest);
@@ -213,7 +223,7 @@ public class ConverterService {
             }
         });
         Flux<ServerSentEvent<String>> toEvent = Flux.create(emitter -> {
-            emitter.next(ServerSentEvent.<String>builder().event("to").id("0").data(String.valueOf(to)).build());
+            emitter.next(ServerSentEvent.<String>builder().event("to").id("0").data(String.valueOf(timeLength)).build());
             emitter.complete();
         });
         Flux<ServerSentEvent<String>> percent = Flux.fromStream(stringStream)

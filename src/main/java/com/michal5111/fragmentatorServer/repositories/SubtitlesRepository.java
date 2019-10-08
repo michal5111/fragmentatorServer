@@ -1,6 +1,6 @@
 package com.michal5111.fragmentatorServer.repositories;
 
-import com.michal5111.fragmentatorServer.Entities.Subtitles;
+import com.michal5111.fragmentatorServer.domain.Subtitles;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

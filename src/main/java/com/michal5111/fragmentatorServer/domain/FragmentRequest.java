@@ -1,4 +1,4 @@
-package com.michal5111.fragmentatorServer.Entities;
+package com.michal5111.fragmentatorServer.domain;
 
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
