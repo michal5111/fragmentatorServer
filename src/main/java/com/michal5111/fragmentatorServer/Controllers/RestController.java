@@ -77,14 +77,19 @@ public class RestController {
     }
 
     @GetMapping(path = "/fragmentRequest/{id}")
-    public Flux<ServerSentEvent<String>> requestFragment(@PathVariable("id") Long fragmentRequestId,
-                                                         HttpServletRequest request) throws FragmentRequestNotFoundException, InterruptedException, MovieNotFoundException, IOException {
+    public Flux<ServerSentEvent<String>> requestFragment(
+            @PathVariable("id") Long fragmentRequestId,
+            HttpServletRequest request
+    ) throws FragmentRequestNotFoundException, InterruptedException, MovieNotFoundException, IOException {
         Optional<FragmentRequest> optionalFragmentRequest = fragmentRequestRepository.findById(fragmentRequestId);
         if (optionalFragmentRequest.isEmpty()) {
             throw new FragmentRequestNotFoundException("Fragment Request Not Found!");
         }
         FragmentRequest fragmentRequest = optionalFragmentRequest.get();
-        List<Line> lines = lineRepository.findAllByIdBetween(fragmentRequest.getStartLine().getId(), fragmentRequest.getStopLine().getId());
+        List<Line> lines = lineRepository.findAllByIdBetween(
+                fragmentRequest.getStartLine().getId(),
+                fragmentRequest.getStopLine().getId()
+        );
         logger.info("Request for: " + fragmentRequest.getMovie().getFileName() + " "
                 + fragmentRequest.getStartLine().getTextLines());
         return converterService.convertFragment(fragmentRequest, lines);
@@ -156,7 +161,10 @@ public class RestController {
 //    }
 
     @GetMapping("/searchPhrase")
-    public List searchLineIndexed2(@RequestParam("phrase") String phrase, @RequestParam("firstResult") int firstResult, @RequestParam("maxResults") int maxResults) {
+    public List searchLineIndexed2(
+            @RequestParam("phrase") String phrase,
+            @RequestParam("firstResult") int firstResult,
+            @RequestParam("maxResults") int maxResults) {
         FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
         QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()
                 .buildQueryBuilder()
@@ -178,7 +186,11 @@ public class RestController {
     }
 
     @GetMapping("/lineSnapshot")
-    public Map<String, String> getLineSnapshot(@RequestParam("lineId") Long lineId, HttpServletRequest request, HttpServletResponse response) throws LineNotFoundException, InterruptedException, MovieNotFoundException, IOException {
+    public Map<String, String> getLineSnapshot(
+            @RequestParam("lineId") Long lineId,
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) throws LineNotFoundException, InterruptedException, MovieNotFoundException, IOException {
         Optional<Line> optionalLine = lineRepository.findById(lineId);
         if (optionalLine.isEmpty()) {
             throw new LineNotFoundException("Line Not Found!");

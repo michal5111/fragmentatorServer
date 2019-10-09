@@ -43,6 +43,13 @@ public class ConverterService {
         this.properties = properties;
     }
 
+    private static class EventTypes {
+        private static final String TO = "to";
+        private static final String LOG = "log";
+        private static final String COMPLETE = "complete";
+        private static final String ERROR = "error";
+    }
+
     private String nameGenerator(Movie movie, List<Line> lines) {
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append(movie.getFileName());
@@ -66,6 +73,8 @@ public class ConverterService {
             stringBuilder.append(line.getTimeFrom());
             stringBuilder.append(line.getTimeTo());
         });
+        stringBuilder.append(".");
+        stringBuilder.append(properties.getConversionVideoFormat());
         return String.valueOf(stringBuilder.toString().hashCode());
     }
 
@@ -90,8 +99,10 @@ public class ConverterService {
         );
     }
 
-    private File createTempSubtitles(FragmentRequest fragmentRequest,
-                                     String startTimeString) throws IOException, InterruptedException {
+    private File createTempSubtitles(
+            FragmentRequest fragmentRequest,
+            String startTimeString
+    ) throws IOException, InterruptedException {
         logger.debug("Converting subtitles...");
         Movie movie = fragmentRequest.getMovie();
         File tempSubtitlesFile = File.createTempFile("temp", ".srt");
@@ -119,11 +130,13 @@ public class ConverterService {
         return tempSubtitlesFile;
     }
 
-    private ProcessBuilder prepareProcess(FragmentRequest fragmentRequest,
-                                          String startTimeString,
-                                          Double timeLength,
-                                          File tempSubtitlesFile,
-                                          String fragmentName) {
+    private ProcessBuilder prepareProcess(
+            FragmentRequest fragmentRequest,
+            String startTimeString,
+            Double timeLength,
+            File tempSubtitlesFile,
+            String fragmentName
+    ) {
         Movie movie = fragmentRequest.getMovie();
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.command(
@@ -175,21 +188,24 @@ public class ConverterService {
         return filename + "." + properties.getConversionImageFormat();
     }
 
-    public Flux<ServerSentEvent<String>> convertFragment(FragmentRequest fragmentRequest, List<Line> lines) throws IOException, MovieNotFoundException, InterruptedException {
+    public Flux<ServerSentEvent<String>> convertFragment(
+            FragmentRequest fragmentRequest,
+            List<Line> lines
+    ) throws IOException, MovieNotFoundException, InterruptedException {
         Movie movie = fragmentRequest.getMovie();
-        String fragmentName = nameGenerator(fragmentRequest, lines) + "." + properties.getConversionVideoFormat();
+        String fragmentName = nameGenerator(fragmentRequest, lines);
         String fragmentPathString = properties.getVideoCache() + File.separator + fragmentName;
-        Path fragmentPath = Path.of(fragmentPathString);
         String startTimeString = getStartTimeString(fragmentRequest);
         Double timeLength = getTimeLength(fragmentRequest);
         File tempSubtitlesFile = createTempSubtitles(fragmentRequest, startTimeString);
+        Path fragmentPath = Path.of(fragmentPathString);
 
         if (fragmentPath.toFile().exists()) {
             logger.debug("File exist");
             return Flux.create(emitter -> {
                 fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
                 fragmentRequestRepository.save(fragmentRequest);
-                emitter.next(ServerSentEvent.<String>builder().event("complete").id("2").data(fragmentName).build());
+                emitter.next(ServerSentEvent.<String>builder().event(EventTypes.COMPLETE).id("2").data(fragmentName).build());
                 emitter.complete();
             });
         } else {
@@ -230,12 +246,14 @@ public class ConverterService {
             }
         });
         Flux<ServerSentEvent<String>> toEvent = Flux.create(emitter -> {
-            emitter.next(ServerSentEvent.<String>builder().event("to").id("0").data(String.valueOf(timeLength)).build());
+            emitter.next(ServerSentEvent.<String>builder()
+                    .event(EventTypes.TO).id(fragmentRequest.getId().toString()).data(String.valueOf(timeLength)).build());
             emitter.complete();
         });
         Flux<ServerSentEvent<String>> percent = Flux.fromStream(stringStream)
                 .doOnNext(s -> logger.debug(s))
-                .map(s -> ServerSentEvent.builder(s).event("log").data(s).id("1").build());
+                .map(s -> ServerSentEvent.builder(s)
+                        .event(EventTypes.LOG).data(s).id(fragmentRequest.getId().toString()).build());
         Flux<ServerSentEvent<String>> complete = Flux.create(emitter -> {
             fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
             fragmentRequest.setResultFileName(fragmentName);
@@ -246,10 +264,12 @@ public class ConverterService {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            emitter.next(ServerSentEvent.<String>builder().event("complete").id("2").data(fragmentName).build());
+            emitter.next(ServerSentEvent.<String>builder()
+                    .event(EventTypes.COMPLETE).id(fragmentRequest.getId().toString()).data(fragmentName).build());
             emitter.complete();
         });
         return toEvent.concatWith(percent.concatWith(complete))
-                .doOnError(s -> ServerSentEvent.builder(s).event("error").data(s).id("2").build());
+                .doOnError(s -> ServerSentEvent.builder(s)
+                        .event(EventTypes.ERROR).data(s).id(fragmentRequest.getId().toString()).build());
     }
 }

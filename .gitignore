@@ -31,3 +31,4 @@ build/
 .vscode/
 /com.michal5111.fragmentatorServer.Entities.Movie/
 /com.michal5111.fragmentatorServer.Entities.Line/
+/config/application.properties
