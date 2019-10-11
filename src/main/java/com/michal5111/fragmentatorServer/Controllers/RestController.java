@@ -78,8 +78,7 @@ public class RestController {
 
     @GetMapping(path = "/fragmentRequest/{id}")
     public Flux<ServerSentEvent<String>> requestFragment(
-            @PathVariable("id") Long fragmentRequestId,
-            HttpServletRequest request
+            @PathVariable("id") Long fragmentRequestId
     ) throws FragmentRequestNotFoundException, InterruptedException, MovieNotFoundException, IOException {
         Optional<FragmentRequest> optionalFragmentRequest = fragmentRequestRepository.findById(fragmentRequestId);
         if (optionalFragmentRequest.isEmpty()) {
@@ -163,8 +162,8 @@ public class RestController {
     @GetMapping("/searchPhrase")
     public List searchLineIndexed2(
             @RequestParam("phrase") String phrase,
-            @RequestParam("firstResult") int firstResult,
-            @RequestParam("maxResults") int maxResults) {
+            @RequestParam("page") int page,
+            @RequestParam("size") int size) {
         FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
         QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()
                 .buildQueryBuilder()
@@ -179,8 +178,8 @@ public class RestController {
                 //.matching(phrase)
                 .createQuery();
         FullTextQuery jpaQuery = fullTextEntityManager.createFullTextQuery(query,Line.class);
-        jpaQuery.setFirstResult(firstResult);
-        jpaQuery.setMaxResults(maxResults);
+        jpaQuery.setFirstResult(page*size);
+        jpaQuery.setMaxResults(size);
         jpaQuery.setSort(Sort.RELEVANCE);
         return jpaQuery.getResultList();
     }

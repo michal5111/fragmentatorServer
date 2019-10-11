@@ -73,9 +73,9 @@ public class ConverterService {
             stringBuilder.append(line.getTimeFrom());
             stringBuilder.append(line.getTimeTo());
         });
-        stringBuilder.append(".");
-        stringBuilder.append(properties.getConversionVideoFormat());
-        return String.valueOf(stringBuilder.toString().hashCode());
+        return String.valueOf(stringBuilder.toString().hashCode())
+                .concat(".")
+                .concat(properties.getConversionVideoFormat());
     }
 
     private String getStartTimeString(FragmentRequest fragmentRequest) {
@@ -205,7 +205,8 @@ public class ConverterService {
             return Flux.create(emitter -> {
                 fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
                 fragmentRequestRepository.save(fragmentRequest);
-                emitter.next(ServerSentEvent.<String>builder().event(EventTypes.COMPLETE).id("2").data(fragmentName).build());
+                emitter.next(ServerSentEvent.<String>builder()
+                        .event(EventTypes.COMPLETE).id(fragmentRequest.getId().toString()).data(fragmentName).build());
                 emitter.complete();
             });
         } else {
