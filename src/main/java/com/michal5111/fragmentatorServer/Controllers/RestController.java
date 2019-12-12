@@ -21,6 +21,9 @@ import org.hibernate.search.jpa.Search;
 import org.hibernate.search.query.dsl.QueryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -160,10 +163,8 @@ public class RestController {
 //    }
 
     @GetMapping("/searchPhrase")
-    public List searchLineIndexed2(
-            @RequestParam("phrase") String phrase,
-            @RequestParam("page") int page,
-            @RequestParam("size") int size) {
+    public Page<Line> searchLineIndexed2(
+            @RequestParam("phrase") String phrase, Pageable pageable) {
         FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
         QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()
                 .buildQueryBuilder()
@@ -178,10 +179,11 @@ public class RestController {
                 //.matching(phrase)
                 .createQuery();
         FullTextQuery jpaQuery = fullTextEntityManager.createFullTextQuery(query,Line.class);
-        jpaQuery.setFirstResult(page*size);
-        jpaQuery.setMaxResults(size);
+        jpaQuery.setFirstResult((int) pageable.getOffset());
+        jpaQuery.setMaxResults(pageable.getPageSize());
         jpaQuery.setSort(Sort.RELEVANCE);
-        return jpaQuery.getResultList();
+        List<Line> result = jpaQuery.getResultList();
+        return new PageImpl<>(result,pageable,jpaQuery.getResultSize());
     }
 
     @GetMapping("/lineSnapshot")
