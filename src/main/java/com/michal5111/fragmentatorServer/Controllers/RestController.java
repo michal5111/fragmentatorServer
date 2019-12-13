@@ -3,6 +3,7 @@ package com.michal5111.fragmentatorServer.Controllers;
 import com.michal5111.fragmentatorServer.domain.FragmentRequest;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.domain.Movie;
+import com.michal5111.fragmentatorServer.domain.Subtitles;
 import com.michal5111.fragmentatorServer.exceptions.FragmentRequestNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
@@ -32,6 +33,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -70,7 +72,10 @@ public class RestController {
 
     @GetMapping("/test")
     public String test() throws IOException {
-        Utils.test();
+        File tempFile = File.createTempFile("test", "srt");
+        Subtitles subtitles = subtitlesRepository.getOne(1L);
+        subtitles.getLines().get(0).setTextLines("test");
+        subtitles.saveToFile(tempFile);
         return "";
     }
 

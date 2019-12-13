@@ -5,9 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.*;
 
 import javax.persistence.*;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.Serializable;
+import java.io.*;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -47,4 +45,23 @@ public class Subtitles implements Serializable {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private Movie movie;
+
+    public boolean saveToFile(File file) throws IOException {
+        BufferedWriter bw = new BufferedWriter(new FileWriter(file, false));
+        lines.forEach(line -> {
+            try {
+                bw.write(String.valueOf(line.getNumber()));
+                bw.newLine();
+                bw.write(line.getTimeString());
+                bw.newLine();
+                bw.write(line.getTextLines().replace("<br>", "\n"));
+                bw.newLine();
+                bw.newLine();
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+        return true;
+    }
 }

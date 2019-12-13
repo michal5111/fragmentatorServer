@@ -106,11 +106,24 @@ public class ConverterService {
         logger.debug("Converting subtitles...");
         Movie movie = fragmentRequest.getMovie();
         File tempSubtitlesFile = File.createTempFile("temp", ".srt");
+        File inputFile = new File(movie.getPath() + File.separator + movie.getSubtitles().getFilename());
+        if (!fragmentRequest.getLineEdits().isEmpty()) {
+            File preTempSubtitlesFile = File.createTempFile("preTemp", ".srt");
+            fragmentRequest.getMovie().getSubtitles().getLines().forEach(line -> {
+                fragmentRequest.getLineEdits().forEach(lineEdit -> {
+                    if (line.getId().equals(lineEdit.getId())) {
+                        line.setTextLines(lineEdit.getText());
+                    }
+                });
+            });
+            fragmentRequest.getMovie().getSubtitles().saveToFile(preTempSubtitlesFile);
+            inputFile = preTempSubtitlesFile;
+        }
         ProcessBuilder subtitlesProcessBuilder = new ProcessBuilder();
         subtitlesProcessBuilder.command(
                 "ffmpeg",
                 "-y",
-                "-i", movie.getPath() + File.separator + movie.getSubtitles().getFilename(),
+                "-i", inputFile.getAbsolutePath(),
                 "-ss", startTimeString,
                 tempSubtitlesFile.getPath()
         );

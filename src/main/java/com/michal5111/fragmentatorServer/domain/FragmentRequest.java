@@ -55,7 +55,7 @@ public class FragmentRequest {
     @JoinColumn(name = "stop_line_id", referencedColumnName = "id")
     private Line stopLine;
 
-    @JsonIgnore
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "fragmentRequest")
