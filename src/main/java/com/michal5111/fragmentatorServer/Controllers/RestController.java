@@ -7,13 +7,9 @@ import com.michal5111.fragmentatorServer.domain.Subtitles;
 import com.michal5111.fragmentatorServer.exceptions.FragmentRequestNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
-import com.michal5111.fragmentatorServer.repositories.FragmentRequestRepository;
-import com.michal5111.fragmentatorServer.repositories.LineRepository;
-import com.michal5111.fragmentatorServer.repositories.MovieRepository;
-import com.michal5111.fragmentatorServer.repositories.SubtitlesRepository;
+import com.michal5111.fragmentatorServer.repositories.*;
 import com.michal5111.fragmentatorServer.services.ConverterService;
 import com.michal5111.fragmentatorServer.services.DatabaseService;
-import com.michal5111.fragmentatorServer.utils.Utils;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.hibernate.search.jpa.FullTextEntityManager;
@@ -58,16 +54,19 @@ public class RestController {
 
     private final FragmentRequestRepository fragmentRequestRepository;
 
+    private final LineEditRepository lineEditRepository;
+
     @PersistenceContext
     private EntityManager entityManager;
 
-    public RestController(ConverterService converterService, MovieRepository movieRepository, SubtitlesRepository subtitlesRepository, LineRepository lineRepository, DatabaseService databaseService, FragmentRequestRepository fragmentRequestRepository) {
+    public RestController(ConverterService converterService, MovieRepository movieRepository, SubtitlesRepository subtitlesRepository, LineRepository lineRepository, DatabaseService databaseService, FragmentRequestRepository fragmentRequestRepository, LineEditRepository lineEditRepository) {
         this.converterService = converterService;
         this.movieRepository = movieRepository;
         this.subtitlesRepository = subtitlesRepository;
         this.lineRepository = lineRepository;
         this.databaseService = databaseService;
         this.fragmentRequestRepository = fragmentRequestRepository;
+        this.lineEditRepository = lineEditRepository;
     }
 
     @GetMapping("/test")
@@ -81,7 +80,13 @@ public class RestController {
 
     @PostMapping("/fragmentRequest")
     public FragmentRequest createFragmentRequest(@RequestBody FragmentRequest fragmentRequest) {
-        return fragmentRequestRepository.save(fragmentRequest);
+        fragmentRequest = fragmentRequestRepository.save(fragmentRequest);
+        FragmentRequest finalFragmentRequest = fragmentRequest;
+        fragmentRequest.getLineEdits().forEach(lineEdit -> {
+            lineEdit.setFragmentRequest(finalFragmentRequest);
+        });
+        lineEditRepository.saveAll(fragmentRequest.getLineEdits());
+        return fragmentRequest;
     }
 
     @GetMapping(path = "/fragmentRequest/{id}")

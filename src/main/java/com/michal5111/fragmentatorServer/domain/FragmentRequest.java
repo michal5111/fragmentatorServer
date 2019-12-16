@@ -35,7 +35,7 @@ public class FragmentRequest {
     private Double stopOffset;
 
     @Enumerated(EnumType.STRING)
-    private FragmentRequestStatus status;
+    private FragmentRequestStatus status = FragmentRequestStatus.PENDING;
 
     private String errorMessage;
 
