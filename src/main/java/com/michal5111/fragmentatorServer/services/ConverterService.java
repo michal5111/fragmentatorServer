@@ -109,13 +109,13 @@ public class ConverterService {
         File inputFile = new File(movie.getPath() + File.separator + movie.getSubtitles().getFilename());
         if (!fragmentRequest.getLineEdits().isEmpty()) {
             File preTempSubtitlesFile = File.createTempFile("preTemp", ".srt");
-            fragmentRequest.getMovie().getSubtitles().getLines().forEach(line -> {
-                fragmentRequest.getLineEdits().forEach(lineEdit -> {
-                    if (line.getId().equals(lineEdit.getId())) {
-                        line.setTextLines(lineEdit.getText());
-                    }
-                });
-            });
+            fragmentRequest.getMovie().getSubtitles().getLines().forEach(line ->
+                    fragmentRequest.getLineEdits().forEach(lineEdit -> {
+                        if (line.getId().equals(lineEdit.getLine().getId())) {
+                            logger.debug("Replacing " + line.getId() + "\n" + line.getTextLines() + "\nto\n" + lineEdit.getId() + "\n" + lineEdit.getText());
+                            line.setTextLines(lineEdit.getText());
+                        }
+                    }));
             fragmentRequest.getMovie().getSubtitles().saveToFile(preTempSubtitlesFile);
             inputFile = preTempSubtitlesFile;
         }

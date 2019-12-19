@@ -1,7 +1,6 @@
 package com.michal5111.fragmentatorServer.deserializers;
 
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.michal5111.fragmentatorServer.domain.Line;
@@ -21,7 +20,7 @@ public class LineIdDeserializer extends JsonDeserializer<Line> {
     }
 
     @Override
-    public Line deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException, JsonProcessingException {
+    public Line deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException {
         Long id = jp.readValueAs(Long.class);
         Optional<Line> optionalLine = lineRepository.findById(id);
         if (optionalLine.isEmpty()) {

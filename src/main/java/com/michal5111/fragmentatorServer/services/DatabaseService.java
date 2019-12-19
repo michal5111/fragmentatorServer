@@ -2,6 +2,7 @@ package com.michal5111.fragmentatorServer.services;
 
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.domain.Movie;
+import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 import com.michal5111.fragmentatorServer.repositories.MovieRepository;
 import com.michal5111.fragmentatorServer.utils.Utils;
 import org.hibernate.search.jpa.FullTextEntityManager;
@@ -12,8 +13,10 @@ import org.springframework.stereotype.Service;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -60,5 +63,31 @@ public class DatabaseService {
                 = Search.getFullTextEntityManager(entityManager);
         fullTextEntityManager.createIndexer().startAndWait();
         return "Success";
+    }
+
+    public List<Movie> cleanDatabase() {
+        List<Movie> deletedMovies = new LinkedList<>();
+        List<Movie> movies = movieRepository.findAll();
+        movies.forEach(movie -> {
+            try {
+                if (movie == null) {
+                    logger.debug("Movie is null");
+                    return;
+                }
+                logger.debug(movie.getPath());
+                logger.debug(movie.getFileName());;
+                movie.setExtension(Utils.getMovieExtension(Path.of(movie.getPath()), movie.getFileName()));
+                logger.debug(movie.getExtension());
+                File movieFile = new File(movie.getPath(), movie.getFileName()+movie.getExtension());
+                File srtFile = new File(movie.getPath(), movie.getSubtitles().getFilename());
+                if (!movieFile.exists() || !srtFile.exists()) {
+                    movieRepository.delete(movie);
+                    deletedMovies.add(movie);
+                }
+            } catch (IOException | MovieNotFoundException e) {
+                logger.debug(e.getMessage());
+            }
+        });
+        return deletedMovies;
     }
 }

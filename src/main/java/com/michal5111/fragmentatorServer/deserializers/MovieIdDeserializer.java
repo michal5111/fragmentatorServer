@@ -1,7 +1,6 @@
 package com.michal5111.fragmentatorServer.deserializers;
 
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.michal5111.fragmentatorServer.domain.Movie;
@@ -23,7 +22,7 @@ public class MovieIdDeserializer extends JsonDeserializer<Movie> {
     }
 
     @Override
-    public Movie deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException, JsonProcessingException {
+    public Movie deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException {
         Long id = jp.readValueAs(Long.class);
         Optional<Movie> optionalMovie = movieRepository.findById(id);
         if (optionalMovie.isEmpty()) {

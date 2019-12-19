@@ -142,6 +142,11 @@ public class RestController {
         return databaseService.updateIndex();
     }
 
+    @GetMapping("/cleanDatabase")
+    public List<Movie> cleanDatabase() {
+        return databaseService.cleanDatabase();
+    }
+
 //    @GetMapping("/searchPhrase")
 //    public Set<SearchPhraseResponse> searchLineIndexed(@RequestParam("phrase") String phrase) {
 //        FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
