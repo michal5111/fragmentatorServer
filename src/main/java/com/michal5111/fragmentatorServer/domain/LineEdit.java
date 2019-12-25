@@ -1,9 +1,6 @@
 package com.michal5111.fragmentatorServer.domain;
 
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.JsonIdentityReference;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.michal5111.fragmentatorServer.deserializers.LineIdDeserializer;
 import lombok.Data;
@@ -12,6 +9,7 @@ import javax.persistence.*;
 
 @Entity
 @Data
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class LineEdit {
 
     @Id

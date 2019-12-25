@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -112,7 +113,11 @@ public class ConverterService {
             fragmentRequest.getMovie().getSubtitles().getLines().forEach(line ->
                     fragmentRequest.getLineEdits().forEach(lineEdit -> {
                         if (line.getId().equals(lineEdit.getLine().getId())) {
-                            logger.debug("Replacing " + line.getId() + "\n" + line.getTextLines() + "\nto\n" + lineEdit.getId() + "\n" + lineEdit.getText());
+                            logger.debug("Replacing "
+                                    + line.getId()
+                                    + "\n" + line.getTextLines()
+                                    + "\nto\n" + lineEdit.getId()
+                                    + "\n" + lineEdit.getText());
                             line.setTextLines(lineEdit.getText());
                         }
                     }));
@@ -215,12 +220,13 @@ public class ConverterService {
 
         if (fragmentPath.toFile().exists()) {
             logger.debug("File exist");
-            return Flux.create(emitter -> {
+            return Mono.just(ServerSentEvent.<String>builder()
+                    .event(EventTypes.COMPLETE).id(fragmentRequest.getId().toString()).data(fragmentName).build()
+            ).flux().doOnComplete(() -> {
                 fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
+                fragmentRequest.setResultFileName(fragmentName);
                 fragmentRequestRepository.save(fragmentRequest);
-                emitter.next(ServerSentEvent.<String>builder()
-                        .event(EventTypes.COMPLETE).id(fragmentRequest.getId().toString()).data(fragmentName).build());
-                emitter.complete();
+                tempSubtitlesFile.delete();
             });
         } else {
             logger.debug("File not exist " + fragmentPathString);
@@ -246,44 +252,55 @@ public class ConverterService {
         final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
         Stream<String> stringStream = reader.lines().peek(s -> {
             if (s.contains("Conversion failed!")) {
-                File fragmentFile = new File(properties.getVideoCache() + File.separator + fragmentName);
-                fragmentFile.delete();
-                fragmentRequest.setErrorMessage("Conversion failed!");
-                fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
-                fragmentRequestRepository.save(fragmentRequest);
-                try {
-                    reader.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
                 throw new IllegalStateException("Conversion failed!");
             }
         });
-        Flux<ServerSentEvent<String>> toEvent = Flux.create(emitter -> {
-            emitter.next(ServerSentEvent.<String>builder()
-                    .event(EventTypes.TO).id(fragmentRequest.getId().toString()).data(String.valueOf(timeLength)).build());
-            emitter.complete();
-        });
+        Mono<ServerSentEvent<String>> toEvent = Mono.just(
+                ServerSentEvent.<String>builder()
+                        .event(EventTypes.TO)
+                        .id(fragmentRequest.getId().toString())
+                        .data(String.valueOf(timeLength))
+                        .build()
+        );
         Flux<ServerSentEvent<String>> percent = Flux.fromStream(stringStream)
                 .doOnNext(s -> logger.debug(s))
                 .map(s -> ServerSentEvent.builder(s)
-                        .event(EventTypes.LOG).data(s).id(fragmentRequest.getId().toString()).build());
-        Flux<ServerSentEvent<String>> complete = Flux.create(emitter -> {
-            fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
-            fragmentRequest.setResultFileName(fragmentName);
-            fragmentRequestRepository.save(fragmentRequest);
-            tempSubtitlesFile.delete();
-            try {
-                reader.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            emitter.next(ServerSentEvent.<String>builder()
-                    .event(EventTypes.COMPLETE).id(fragmentRequest.getId().toString()).data(fragmentName).build());
-            emitter.complete();
-        });
+                        .event(EventTypes.LOG)
+                        .data(s)
+                        .id(fragmentRequest.getId().toString())
+                        .build());
+        Mono<ServerSentEvent<String>> complete = Mono.just(
+                ServerSentEvent.<String>builder()
+                        .event(EventTypes.COMPLETE)
+                        .id(fragmentRequest.getId().toString())
+                        .data(fragmentName)
+                        .build()
+        );
         return toEvent.concatWith(percent.concatWith(complete))
-                .doOnError(s -> ServerSentEvent.builder(s)
-                        .event(EventTypes.ERROR).data(s).id(fragmentRequest.getId().toString()).build());
+                .doOnComplete(() -> {
+                    fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
+                    fragmentRequest.setResultFileName(fragmentName);
+                    fragmentRequestRepository.save(fragmentRequest);
+                    tempSubtitlesFile.delete();
+                    try {
+                        reader.close();
+                    } catch (IOException e) {
+                        logger.error(e.getMessage());
+                    }
+                })
+                .doOnError(e -> {
+                    File fragmentFile = new File(properties.getVideoCache() + File.separator + fragmentName);
+                    fragmentFile.delete();
+                    tempSubtitlesFile.delete();
+                    try {
+                        reader.close();
+                    } catch (IOException ex) {
+                        logger.error(ex.getMessage());
+                    }
+                    logger.error(e.getMessage());
+                    fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
+                    fragmentRequest.setErrorMessage(e.getMessage());
+                    fragmentRequestRepository.save(fragmentRequest);
+                });
     }
 }

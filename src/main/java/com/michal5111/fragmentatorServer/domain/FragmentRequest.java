@@ -14,6 +14,7 @@ import java.util.List;
 
 @Entity
 @Data
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @EqualsAndHashCode
 @ToString
 public class FragmentRequest {

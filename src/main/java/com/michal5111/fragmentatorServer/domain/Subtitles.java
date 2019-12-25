@@ -1,7 +1,7 @@
 package com.michal5111.fragmentatorServer.domain;
 
-import com.fasterxml.jackson.annotation.*;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 
 import javax.persistence.*;
@@ -13,7 +13,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
-@JsonDeserialize(as = SRTSubtitles.class)
 @EqualsAndHashCode
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Subtitles implements Serializable {
@@ -33,10 +32,6 @@ public class Subtitles implements Serializable {
 //    @JsonInclude
 //    @EqualsAndHashCode.Exclude
 //    protected List<Line> filteredLines = new LinkedList<>();
-
-    public boolean parse() throws FileNotFoundException {
-        return false;
-    }
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn
@@ -62,6 +57,14 @@ public class Subtitles implements Serializable {
                 e.printStackTrace();
             }
         });
+        bw.close();
         return true;
+    }
+
+    public File getSubtitleFile() {
+        if (subtitleFile == null) {
+            subtitleFile = new File(getMovie().getPath(), getFilename());
+        }
+        return subtitleFile;
     }
 }

@@ -2,7 +2,6 @@ package com.michal5111.fragmentatorServer.utils;
 
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.domain.Movie;
-import com.michal5111.fragmentatorServer.domain.SRTSubtitles;
 import com.michal5111.fragmentatorServer.domain.Subtitles;
 import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 
@@ -71,7 +70,7 @@ public class Utils {
     }
 
     private static Movie createMovieFromFile(File file) {
-        Subtitles subtitles = new SRTSubtitles();
+        Subtitles subtitles = new Subtitles();
         subtitles.setSubtitleFile(file);
         subtitles.setFilename(file.getName());
         Movie movie = Movie.builder()

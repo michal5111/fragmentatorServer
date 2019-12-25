@@ -3,113 +3,79 @@ package com.michal5111.fragmentatorServer.Controllers;
 import com.michal5111.fragmentatorServer.domain.FragmentRequest;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.domain.Movie;
-import com.michal5111.fragmentatorServer.domain.Subtitles;
 import com.michal5111.fragmentatorServer.exceptions.FragmentRequestNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
-import com.michal5111.fragmentatorServer.repositories.*;
-import com.michal5111.fragmentatorServer.services.ConverterService;
+import com.michal5111.fragmentatorServer.exceptions.UnknownSubtitlesTypeException;
+import com.michal5111.fragmentatorServer.repositories.LineRepository;
+import com.michal5111.fragmentatorServer.repositories.MovieRepository;
 import com.michal5111.fragmentatorServer.services.DatabaseService;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
-import org.hibernate.search.jpa.FullTextEntityManager;
-import org.hibernate.search.jpa.FullTextQuery;
-import org.hibernate.search.jpa.Search;
-import org.hibernate.search.query.dsl.QueryBuilder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.michal5111.fragmentatorServer.services.FragmentRequestService;
+import com.michal5111.fragmentatorServer.services.LineService;
+import com.michal5111.fragmentatorServer.services.SearchService;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
-import javax.persistence.EntityManager;
-import javax.persistence.PersistenceContext;
 import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @org.springframework.web.bind.annotation.RestController
 @RequestMapping("api")
 public class RestController {
 
-    private final Logger logger = LoggerFactory.getLogger(RestController.class);
-
-    private final ConverterService converterService;
-
     private final MovieRepository movieRepository;
-
-    private final SubtitlesRepository subtitlesRepository;
 
     private final LineRepository lineRepository;
 
     private final DatabaseService databaseService;
 
-    private final FragmentRequestRepository fragmentRequestRepository;
+    private final FragmentRequestService fragmentRequestService;
 
-    private final LineEditRepository lineEditRepository;
+    private final LineService lineService;
 
-    @PersistenceContext
-    private EntityManager entityManager;
+    private final SearchService searchService;
 
-    public RestController(ConverterService converterService, MovieRepository movieRepository, SubtitlesRepository subtitlesRepository, LineRepository lineRepository, DatabaseService databaseService, FragmentRequestRepository fragmentRequestRepository, LineEditRepository lineEditRepository) {
-        this.converterService = converterService;
+    public RestController(MovieRepository movieRepository,
+                          LineRepository lineRepository,
+                          DatabaseService databaseService,
+                          FragmentRequestService fragmentRequestService,
+                          LineService lineService,
+                          SearchService searchService) {
         this.movieRepository = movieRepository;
-        this.subtitlesRepository = subtitlesRepository;
         this.lineRepository = lineRepository;
         this.databaseService = databaseService;
-        this.fragmentRequestRepository = fragmentRequestRepository;
-        this.lineEditRepository = lineEditRepository;
-    }
-
-    @GetMapping("/test")
-    public String test() throws IOException {
-        File tempFile = File.createTempFile("test", "srt");
-        Subtitles subtitles = subtitlesRepository.getOne(1L);
-        subtitles.getLines().get(0).setTextLines("test");
-        subtitles.saveToFile(tempFile);
-        return "";
+        this.fragmentRequestService = fragmentRequestService;
+        this.lineService = lineService;
+        this.searchService = searchService;
     }
 
     @PostMapping("/fragmentRequest")
+    @ResponseStatus(HttpStatus.CREATED)
     public FragmentRequest createFragmentRequest(@RequestBody FragmentRequest fragmentRequest) {
-        fragmentRequest = fragmentRequestRepository.save(fragmentRequest);
-        FragmentRequest finalFragmentRequest = fragmentRequest;
-        fragmentRequest.getLineEdits().forEach(lineEdit -> {
-            lineEdit.setFragmentRequest(finalFragmentRequest);
-        });
-        lineEditRepository.saveAll(fragmentRequest.getLineEdits());
-        return fragmentRequest;
+        return fragmentRequestService.create(fragmentRequest);
     }
 
     @GetMapping(path = "/fragmentRequest/{id}")
     public Flux<ServerSentEvent<String>> requestFragment(
-            @PathVariable("id") Long fragmentRequestId
+            @PathVariable("id") Long id
     ) throws FragmentRequestNotFoundException, InterruptedException, MovieNotFoundException, IOException {
-        Optional<FragmentRequest> optionalFragmentRequest = fragmentRequestRepository.findById(fragmentRequestId);
-        if (optionalFragmentRequest.isEmpty()) {
-            throw new FragmentRequestNotFoundException("Fragment Request Not Found!");
-        }
-        FragmentRequest fragmentRequest = optionalFragmentRequest.get();
-        List<Line> lines = lineRepository.findAllByIdBetween(
-                fragmentRequest.getStartLine().getId(),
-                fragmentRequest.getStopLine().getId()
-        );
-        logger.info("Request for: " + fragmentRequest.getMovie().getFileName() + " "
-                + fragmentRequest.getStartLine().getTextLines());
-        return converterService.convertFragment(fragmentRequest, lines);
+        return fragmentRequestService.get(id);
     }
 
     @GetMapping("updateDatabase")
     public List<Movie> updateDatabase() throws IOException, InterruptedException {
         return databaseService.updateDatabase();
+    }
+
+    @GetMapping("updateDatabase/{id}")
+    public List<Line> updateSubtitles(@PathVariable("id") Long id) throws IOException, UnknownSubtitlesTypeException {
+        return databaseService.updateDatabase(id);
     }
 
     @GetMapping("/lineHints")
@@ -133,8 +99,9 @@ public class RestController {
     }
 
     @GetMapping("/getFilteredLines")
-    public List<Line> getFilteredLines(@RequestParam("subtitlesId") Long movieId,@RequestParam("phrase") String phrase) {
-        return lineRepository.findFilteredLines(movieId,phrase);
+    public List<Line> getFilteredLines(@RequestParam("subtitlesId") Long movieId,
+                                       @RequestParam("phrase") String phrase) {
+        return lineRepository.findFilteredLines(movieId, phrase);
     }
 
     @GetMapping("/updateIndex")
@@ -147,73 +114,18 @@ public class RestController {
         return databaseService.cleanDatabase();
     }
 
-//    @GetMapping("/searchPhrase")
-//    public Set<SearchPhraseResponse> searchLineIndexed(@RequestParam("phrase") String phrase) {
-//        FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
-//        QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()
-//                .buildQueryBuilder()
-//                .forEntity(Line.class)
-//                .get();
-//        Query query = queryBuilder
-//                .phrase()
-//                .withSlop(2)
-//                //.simpleQueryString()
-//                .onField("textLines")
-//                .sentence(phrase)
-//                //.matching(phrase)
-//                .createQuery();
-//        FullTextQuery jpaQuery = fullTextEntityManager.createFullTextQuery(query,Line.class);
-//        //jpaQuery.setMaxResults(100);
-//        jpaQuery.setSort(Sort.RELEVANCE);
-//        List<Line> resultList = jpaQuery.getResultList();
-//        Set<SearchPhraseResponse> searchPhraseResponses = new HashSet<>();
-//        resultList.forEach(line -> {
-//            SearchPhraseResponse searchPhraseResponse = new SearchPhraseResponse();
-//            Subtitles subtitles = line.getSubtitles();
-//            Movie movie = subtitles.getMovie();
-//            searchPhraseResponse.setMovie(movie);
-//            searchPhraseResponses.add(movie);
-//        });
-//        return searchPhraseResponses;
-//    }
 
     @GetMapping("/searchPhrase")
     public Page<Line> searchLineIndexed2(
             @RequestParam("phrase") String phrase, Pageable pageable) {
-        FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
-        QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()
-                .buildQueryBuilder()
-                .forEntity(Line.class)
-                .get();
-        Query query = queryBuilder
-                .phrase()
-                .withSlop(2)
-                //.simpleQueryString()
-                .onField("textLines")
-                .sentence(phrase)
-                //.matching(phrase)
-                .createQuery();
-        FullTextQuery jpaQuery = fullTextEntityManager.createFullTextQuery(query,Line.class);
-        jpaQuery.setFirstResult((int) pageable.getOffset());
-        jpaQuery.setMaxResults(pageable.getPageSize());
-        jpaQuery.setSort(Sort.RELEVANCE);
-        List<Line> result = jpaQuery.getResultList();
-        return new PageImpl<>(result,pageable,jpaQuery.getResultSize());
+        return searchService.search(phrase, pageable);
     }
 
     @GetMapping("/lineSnapshot")
     public Map<String, String> getLineSnapshot(
             @RequestParam("lineId") Long lineId,
-            HttpServletRequest request,
-            HttpServletResponse response
+            HttpServletRequest request
     ) throws LineNotFoundException, InterruptedException, MovieNotFoundException, IOException {
-        Optional<Line> optionalLine = lineRepository.findById(lineId);
-        if (optionalLine.isEmpty()) {
-            throw new LineNotFoundException("Line Not Found!");
-        }
-        Line line = optionalLine.get();
-        Map<String, String> map = new HashMap<>();
-        map.put("url","http://" + request.getServerName() + ":" + request.getServerPort() + "/fragmentatorServer/snapshots/" + converterService.getSnapshot(line));
-        return map;
+        return lineService.getSnapshot(lineId, request);
     }
 }
