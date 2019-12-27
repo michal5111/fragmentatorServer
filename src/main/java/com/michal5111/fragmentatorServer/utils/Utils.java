@@ -21,50 +21,6 @@ import java.util.stream.Stream;
 
 public class Utils {
 
-    static public void test() throws IOException {
-        Path[] paths = new Path[]{
-                Paths.get("/disks/G/Pobrane/Filmy"),
-                Paths.get("/disks/G/Pobrane/Seriale"),
-                Paths.get("/disks/E/Downloads/Filmy"),
-                Paths.get("/disks/E/Downloads/Seriale"),
-                Paths.get("/disks/G/kopia/Downloads/Seriale")
-        };
-        Stream<Path>[] streams = new Stream[paths.length];
-        for (int i = 0; i < paths.length; i++) {
-            streams[i] = Files.walk(paths[i])
-                    .filter(Files::isRegularFile)
-                    .filter(x -> !x.getFileName().toString().endsWith(".srt"))
-                    .filter(x -> !x.getFileName().toString().endsWith(".torrent"))
-                    .filter(x -> !x.getFileName().toString().endsWith(".txt"))
-                    .filter(x -> !x.getFileName().toString().endsWith(".divx"))
-                    .filter(x -> !x.getFileName().toString().endsWith(".nfo"))
-                    .filter(x -> !x.getFileName().toString().endsWith(".idx"))
-                    .filter(x -> !x.getFileName().toString().endsWith(".rmvb"))
-                    .filter(x -> !x.getFileName().toString().endsWith(".url"))
-                    .filter(x -> {
-                        try {
-                            return Files.probeContentType(x) == null;
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                        return false;
-                    });
-
-
-        }
-        Arrays.stream(streams)
-                .flatMap(Function.identity())
-                .forEach(path -> {
-                    try {
-                        System.out.println(path);
-                        System.out.println(Files.probeContentType(path));
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                });
-    }
-
-
     private static boolean endsWithSRT(Path path) {
         return path.getFileName().toString().endsWith(".srt");
     }

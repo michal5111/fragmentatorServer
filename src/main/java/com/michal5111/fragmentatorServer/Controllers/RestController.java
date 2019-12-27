@@ -9,16 +9,14 @@ import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.UnknownSubtitlesTypeException;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
 import com.michal5111.fragmentatorServer.repositories.MovieRepository;
-import com.michal5111.fragmentatorServer.services.DatabaseService;
-import com.michal5111.fragmentatorServer.services.FragmentRequestService;
-import com.michal5111.fragmentatorServer.services.LineService;
-import com.michal5111.fragmentatorServer.services.SearchService;
+import com.michal5111.fragmentatorServer.services.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.ParallelFlux;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -61,15 +59,15 @@ public class RestController {
         return fragmentRequestService.create(fragmentRequest);
     }
 
-    @GetMapping(path = "/fragmentRequest/{id}")
-    public Flux<ServerSentEvent<String>> requestFragment(
+    @GetMapping(path = "/fragmentRequest/{id}", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
+    public Flux<ConverterService.ConversionStatus> requestFragment(
             @PathVariable("id") Long id
     ) throws FragmentRequestNotFoundException, InterruptedException, MovieNotFoundException, IOException {
         return fragmentRequestService.get(id);
     }
 
-    @GetMapping("updateDatabase")
-    public List<Movie> updateDatabase() throws IOException, InterruptedException {
+    @GetMapping(value = "updateDatabase", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
+    public ParallelFlux<Movie> updateDatabase() throws IOException, InterruptedException {
         return databaseService.updateDatabase();
     }
 

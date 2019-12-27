@@ -16,6 +16,8 @@ import org.hibernate.search.jpa.Search;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.ParallelFlux;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
@@ -47,36 +49,37 @@ public class DatabaseService {
         this.subtitlesRepository = subtitlesRepository;
     }
 
-    public List<Movie> updateDatabase() throws IOException, InterruptedException {
-        List<Movie> addedMovies = new LinkedList<>();
-        Utils.findMovies().forEach(movie -> {
-            Optional<Movie> optionalMovie = movieRepository
-                    .findByPathAndFileNameEquals(movie.getPath(), movie.getFileName());
-            if (optionalMovie.isPresent()) {
-                return;
-            }
-            logger.info("Adding movie: " + movie.getPath() + "/" + movie.getFileName());
-            Subtitles subtitles = movie.getSubtitles();
-            SubtitlesParserFactory subtitlesParserFactory = new SubtitlesParserFactory(subtitles.getFilename());
-            SubtitlesParser subtitlesParser = null;
-            try {
-                subtitlesParser = subtitlesParserFactory.create();
-            } catch (UnknownSubtitlesTypeException e) {
-                logger.error(e.getMessage());
-            }
-            try {
-                List<Line> lineList = subtitlesParser.parse(subtitles);
-                subtitles.setLines(lineList);
-            } catch (FileNotFoundException e) {
-                logger.error(e.getMessage());
-            }
-            movie.getSubtitles().getLines().forEach(Line::parseTime);
-
-            addedMovies.add(movie);
-            movieRepository.save(movie);
-        });
-        updateIndex();
-        return addedMovies;
+    public ParallelFlux<Movie> updateDatabase() throws IOException, InterruptedException {
+        return Flux.fromStream(Utils.findMovies())
+                .filter(movie -> movieRepository
+                        .findByPathAndFileNameEquals(movie.getPath(), movie.getFileName()).isPresent())
+                .doOnNext(movie -> logger.info("Adding movie: " + movie.getPath() + "/" + movie.getFileName()))
+                .doOnNext(movie -> {
+                    Subtitles subtitles = movie.getSubtitles();
+                    SubtitlesParserFactory subtitlesParserFactory = new SubtitlesParserFactory(subtitles.getFilename());
+                    SubtitlesParser subtitlesParser = null;
+                    try {
+                        subtitlesParser = subtitlesParserFactory.create();
+                    } catch (UnknownSubtitlesTypeException e) {
+                        logger.error(e.getMessage());
+                    }
+                    try {
+                        List<Line> lineList = subtitlesParser.parse(subtitles);
+                        subtitles.setLines(lineList);
+                    } catch (FileNotFoundException e) {
+                        logger.error(e.getMessage());
+                    }
+                    subtitles.getLines().forEach(Line::parseTime);
+                })
+                .map(movieRepository::save)
+                .parallel()
+                .doOnComplete(() -> {
+                    try {
+                        updateIndex();
+                    } catch (InterruptedException e) {
+                        logger.error(e.getMessage());
+                    }
+                });
     }
 
     public List<Line> updateDatabase(Long id) throws FileNotFoundException, UnknownSubtitlesTypeException {

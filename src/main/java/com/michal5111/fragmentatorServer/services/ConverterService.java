@@ -10,7 +10,6 @@ import com.michal5111.fragmentatorServer.utils.Properties;
 import com.michal5111.fragmentatorServer.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -44,7 +43,88 @@ public class ConverterService {
         this.properties = properties;
     }
 
-    private static class EventTypes {
+    public Flux<ConversionStatus> convertFragment(
+            FragmentRequest fragmentRequest,
+            List<Line> lines
+    ) throws IOException, MovieNotFoundException, InterruptedException {
+        Movie movie = fragmentRequest.getMovie();
+        String fragmentName = nameGenerator(fragmentRequest, lines);
+        String fragmentPathString = properties.getVideoCache() + File.separator + fragmentName;
+        String startTimeString = getStartTimeString(fragmentRequest);
+        Double timeLength = getTimeLength(fragmentRequest);
+        File tempSubtitlesFile = createTempSubtitles(fragmentRequest, startTimeString);
+        Path fragmentPath = Path.of(fragmentPathString);
+
+        if (fragmentPath.toFile().exists()) {
+            logger.debug("File exist");
+            return Mono.just(new ConversionStatus(timeLength, fragmentName, EventType.COMPLETE)
+            ).flux().doOnComplete(() -> {
+                fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
+                fragmentRequest.setResultFileName(fragmentName);
+                fragmentRequestRepository.save(fragmentRequest);
+                tempSubtitlesFile.delete();
+            });
+        } else {
+            logger.debug("File not exist " + fragmentPathString);
+        }
+
+        movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath()), movie.getFileName()));
+        logger.debug("Movie extension: " + movie.getExtension());
+        logger.debug("Time lenght: " + timeLength);
+        logger.debug("Start Time: " + startTimeString);
+
+        ProcessBuilder processBuilder = prepareProcess(
+                fragmentRequest,
+                startTimeString,
+                timeLength,
+                tempSubtitlesFile,
+                fragmentName
+        );
+
+        fragmentRequest.setStatus(FragmentRequestStatus.CONVERTING);
+        fragmentRequestRepository.save(fragmentRequest);
+
+        Process process = processBuilder.start();
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+        Stream<String> stringStream = reader.lines().peek(s -> {
+            if (s.contains("Conversion failed!")) {
+                throw new IllegalStateException("Conversion failed!");
+            }
+        });
+        Mono<ConversionStatus> toEvent = Mono.just(
+                new ConversionStatus(timeLength, null, EventType.TO)
+        );
+        Flux<ConversionStatus> percent = Flux.fromStream(stringStream)
+                .doOnNext(s -> logger.debug(s))
+                .map(s -> new ConversionStatus(null, s, EventType.LOG));
+        Mono<ConversionStatus> complete = Mono.just(
+                new ConversionStatus(null, fragmentName, EventType.COMPLETE)
+        );
+        return toEvent.concatWith(percent.concatWith(complete))
+                .doOnComplete(() -> {
+                    fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
+                    fragmentRequest.setResultFileName(fragmentName);
+                    fragmentRequestRepository.save(fragmentRequest);
+                })
+                .doOnError(e -> {
+                    File fragmentFile = new File(properties.getVideoCache() + File.separator + fragmentName);
+                    fragmentFile.delete();
+                    logger.error(e.getMessage());
+                    fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
+                    fragmentRequest.setErrorMessage(e.getMessage());
+                    fragmentRequestRepository.save(fragmentRequest);
+                })
+                .doFinally(object -> {
+                    tempSubtitlesFile.delete();
+                    try {
+                        reader.close();
+                    } catch (IOException ex) {
+                        logger.error(ex.getMessage());
+                    }
+                });
+    }
+
+    private static class EventType {
         private static final String TO = "to";
         private static final String LOG = "log";
         private static final String COMPLETE = "complete";
@@ -206,101 +286,15 @@ public class ConverterService {
         return filename + "." + properties.getConversionImageFormat();
     }
 
-    public Flux<ServerSentEvent<String>> convertFragment(
-            FragmentRequest fragmentRequest,
-            List<Line> lines
-    ) throws IOException, MovieNotFoundException, InterruptedException {
-        Movie movie = fragmentRequest.getMovie();
-        String fragmentName = nameGenerator(fragmentRequest, lines);
-        String fragmentPathString = properties.getVideoCache() + File.separator + fragmentName;
-        String startTimeString = getStartTimeString(fragmentRequest);
-        Double timeLength = getTimeLength(fragmentRequest);
-        File tempSubtitlesFile = createTempSubtitles(fragmentRequest, startTimeString);
-        Path fragmentPath = Path.of(fragmentPathString);
+    public static class ConversionStatus {
+        public Double timeLength;
+        public String logLine;
+        public String eventType;
 
-        if (fragmentPath.toFile().exists()) {
-            logger.debug("File exist");
-            return Mono.just(ServerSentEvent.<String>builder()
-                    .event(EventTypes.COMPLETE).id(fragmentRequest.getId().toString()).data(fragmentName).build()
-            ).flux().doOnComplete(() -> {
-                fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
-                fragmentRequest.setResultFileName(fragmentName);
-                fragmentRequestRepository.save(fragmentRequest);
-                tempSubtitlesFile.delete();
-            });
-        } else {
-            logger.debug("File not exist " + fragmentPathString);
+        public ConversionStatus(Double timeLength, String logLine, String eventType) {
+            this.timeLength = timeLength;
+            this.logLine = logLine;
+            this.eventType = eventType;
         }
-
-        movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath()), movie.getFileName()));
-        logger.debug("Movie extension: " + movie.getExtension());
-        logger.debug("Time lenght: " + timeLength);
-        logger.debug("Start Time: " + startTimeString);
-
-        ProcessBuilder processBuilder = prepareProcess(
-                fragmentRequest,
-                startTimeString,
-                timeLength,
-                tempSubtitlesFile,
-                fragmentName
-        );
-
-        fragmentRequest.setStatus(FragmentRequestStatus.CONVERTING);
-        fragmentRequestRepository.save(fragmentRequest);
-
-        Process process = processBuilder.start();
-        final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        Stream<String> stringStream = reader.lines().peek(s -> {
-            if (s.contains("Conversion failed!")) {
-                throw new IllegalStateException("Conversion failed!");
-            }
-        });
-        Mono<ServerSentEvent<String>> toEvent = Mono.just(
-                ServerSentEvent.<String>builder()
-                        .event(EventTypes.TO)
-                        .id(fragmentRequest.getId().toString())
-                        .data(String.valueOf(timeLength))
-                        .build()
-        );
-        Flux<ServerSentEvent<String>> percent = Flux.fromStream(stringStream)
-                .doOnNext(s -> logger.debug(s))
-                .map(s -> ServerSentEvent.builder(s)
-                        .event(EventTypes.LOG)
-                        .data(s)
-                        .id(fragmentRequest.getId().toString())
-                        .build());
-        Mono<ServerSentEvent<String>> complete = Mono.just(
-                ServerSentEvent.<String>builder()
-                        .event(EventTypes.COMPLETE)
-                        .id(fragmentRequest.getId().toString())
-                        .data(fragmentName)
-                        .build()
-        );
-        return toEvent.concatWith(percent.concatWith(complete))
-                .doOnComplete(() -> {
-                    fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
-                    fragmentRequest.setResultFileName(fragmentName);
-                    fragmentRequestRepository.save(fragmentRequest);
-                    tempSubtitlesFile.delete();
-                    try {
-                        reader.close();
-                    } catch (IOException e) {
-                        logger.error(e.getMessage());
-                    }
-                })
-                .doOnError(e -> {
-                    File fragmentFile = new File(properties.getVideoCache() + File.separator + fragmentName);
-                    fragmentFile.delete();
-                    tempSubtitlesFile.delete();
-                    try {
-                        reader.close();
-                    } catch (IOException ex) {
-                        logger.error(ex.getMessage());
-                    }
-                    logger.error(e.getMessage());
-                    fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
-                    fragmentRequest.setErrorMessage(e.getMessage());
-                    fragmentRequestRepository.save(fragmentRequest);
-                });
     }
 }

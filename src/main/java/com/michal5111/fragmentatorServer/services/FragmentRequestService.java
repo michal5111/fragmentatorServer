@@ -10,7 +10,6 @@ import com.michal5111.fragmentatorServer.repositories.LineEditRepository;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -46,7 +45,7 @@ public class FragmentRequestService {
         return fragmentRequest;
     }
 
-    public Flux<ServerSentEvent<String>> get(Long id) throws InterruptedException, MovieNotFoundException, IOException, FragmentRequestNotFoundException {
+    public Flux<ConverterService.ConversionStatus> get(Long id) throws InterruptedException, MovieNotFoundException, IOException, FragmentRequestNotFoundException {
         Optional<FragmentRequest> optionalFragmentRequest = fragmentRequestRepository.findById(id);
         if (optionalFragmentRequest.isEmpty()) {
             throw new FragmentRequestNotFoundException("Fragment Request Not Found!");

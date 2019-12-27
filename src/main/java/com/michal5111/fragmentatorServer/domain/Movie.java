@@ -24,10 +24,10 @@ public class Movie {
     private Long id;
     @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
     @JsonIdentityReference(alwaysAsId = true)
-    @OneToOne(mappedBy = "movie",cascade = CascadeType.ALL)
+    @OneToOne(mappedBy = "movie", cascade = CascadeType.ALL, orphanRemoval = true)
     private Subtitles subtitles;
     @Field(termVector = TermVector.YES)
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String fileName;
     @Field(termVector = TermVector.YES)
     @Column(nullable = false)

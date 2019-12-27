@@ -23,11 +23,11 @@ public class Subtitles implements Serializable {
     @JsonIgnore
     @Transient
     protected File subtitleFile;
-    @Column(nullable = false)
-    private String filename;
     @JsonIgnore
-    @OneToMany(mappedBy = "subtitles", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "subtitles", cascade = CascadeType.ALL, orphanRemoval = true)
     protected List<Line> lines = new LinkedList<>();
+    @Column(nullable = false, unique = true)
+    private String filename;
 //    @Transient
 //    @JsonInclude
 //    @EqualsAndHashCode.Exclude
