@@ -1,6 +1,7 @@
 package com.michal5111.fragmentatorServer.services;
 
 import com.michal5111.fragmentatorServer.domain.Line;
+import com.michal5111.fragmentatorServer.exceptions.InvalidFFMPEGPropertiesException;
 import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
@@ -24,7 +25,7 @@ public class LineService {
         this.converterService = converterService;
     }
 
-    public Map<String, String> getSnapshot(Long id, HttpServletRequest request) throws LineNotFoundException, InterruptedException, MovieNotFoundException, IOException {
+    public Map<String, String> getSnapshot(Long id, HttpServletRequest request) throws LineNotFoundException, InterruptedException, MovieNotFoundException, IOException, InvalidFFMPEGPropertiesException {
         Optional<Line> optionalLine = lineRepository.findById(id);
         if (optionalLine.isEmpty()) {
             throw new LineNotFoundException("Line Not Found!");

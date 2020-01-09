@@ -3,23 +3,22 @@ package com.michal5111.fragmentatorServer.Controllers;
 import com.michal5111.fragmentatorServer.domain.FragmentRequest;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.domain.Movie;
-import com.michal5111.fragmentatorServer.exceptions.FragmentRequestNotFoundException;
-import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
-import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
-import com.michal5111.fragmentatorServer.exceptions.UnknownSubtitlesTypeException;
+import com.michal5111.fragmentatorServer.exceptions.*;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
 import com.michal5111.fragmentatorServer.repositories.MovieRepository;
 import com.michal5111.fragmentatorServer.services.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.ParallelFlux;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -38,6 +37,8 @@ public class RestController {
     private final LineService lineService;
 
     private final SearchService searchService;
+
+    private Logger logger = LoggerFactory.getLogger(RestController.class);
 
     public RestController(MovieRepository movieRepository,
                           LineRepository lineRepository,
@@ -62,12 +63,12 @@ public class RestController {
     @GetMapping(path = "/fragmentRequest/{id}", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
     public Flux<ConverterService.ConversionStatus> requestFragment(
             @PathVariable("id") Long id
-    ) throws FragmentRequestNotFoundException, InterruptedException, MovieNotFoundException, IOException {
+    ) throws FragmentRequestNotFoundException, InterruptedException, MovieNotFoundException, IOException, SubtitlesNotFoundException, InvalidFFMPEGPropertiesException {
         return fragmentRequestService.get(id);
     }
 
     @GetMapping(value = "updateDatabase", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
-    public ParallelFlux<Movie> updateDatabase() throws IOException, InterruptedException {
+    public Flux<Movie> updateDatabase() throws IOException {
         return databaseService.updateDatabase();
     }
 
@@ -102,7 +103,7 @@ public class RestController {
         return lineRepository.findFilteredLines(movieId, phrase);
     }
 
-    @GetMapping("/updateIndex")
+    @GetMapping(value = "/updateIndex", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public String updateIndex() throws InterruptedException {
         return databaseService.updateIndex();
     }
@@ -123,7 +124,26 @@ public class RestController {
     public Map<String, String> getLineSnapshot(
             @RequestParam("lineId") Long lineId,
             HttpServletRequest request
-    ) throws LineNotFoundException, InterruptedException, MovieNotFoundException, IOException {
+    ) throws LineNotFoundException, InterruptedException, MovieNotFoundException, IOException, InvalidFFMPEGPropertiesException {
         return lineService.getSnapshot(lineId, request);
+    }
+
+    @PostMapping("/progress")
+    public void handleRequest(InputStream dataStream) throws IOException {
+        int i;
+        char c;
+        StringBuilder stringBuilder = new StringBuilder();
+        while ((i = dataStream.read()) != -1) {
+
+            // converts integer to character
+            c = (char) i;
+            if (c != '\n') {
+                stringBuilder.append(c);
+            } else {
+                logger.debug(stringBuilder.toString());
+                stringBuilder = new StringBuilder();
+            }
+            // prints character
+        }
     }
 }

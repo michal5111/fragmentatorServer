@@ -3,8 +3,13 @@ package com.michal5111.fragmentatorServer.services;
 import com.michal5111.fragmentatorServer.domain.FragmentRequest;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.domain.Movie;
+import com.michal5111.fragmentatorServer.enums.FFMPEGConversionType;
 import com.michal5111.fragmentatorServer.enums.FragmentRequestStatus;
+import com.michal5111.fragmentatorServer.exceptions.InvalidFFMPEGPropertiesException;
 import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
+import com.michal5111.fragmentatorServer.exceptions.SubtitlesNotFoundException;
+import com.michal5111.fragmentatorServer.ffmpeg.FFMPEGProperties;
+import com.michal5111.fragmentatorServer.ffmpeg.FFMPEGWrapper;
 import com.michal5111.fragmentatorServer.repositories.FragmentRequestRepository;
 import com.michal5111.fragmentatorServer.utils.Properties;
 import com.michal5111.fragmentatorServer.utils.Utils;
@@ -14,22 +19,18 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Stream;
 
 import static com.michal5111.fragmentatorServer.utils.Utils.getMovieExtension;
 
-//@EnableConfigurationProperties(Properties.class)
 @Service
 public class ConverterService {
 
@@ -43,85 +44,95 @@ public class ConverterService {
         this.properties = properties;
     }
 
+    private void onComplete(
+            FragmentRequest fragmentRequest,
+            File tempSubtitlesFile,
+            String fragmentName) {
+        fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
+        fragmentRequest.setResultFileName(fragmentName);
+        fragmentRequestRepository.save(fragmentRequest);
+        if (!tempSubtitlesFile.delete()) {
+            logger.error("Error in deleting file " + tempSubtitlesFile.getName());
+        }
+    }
+
+    private void onError(Throwable e, FragmentRequest fragmentRequest, String fragmentName) {
+        File fragmentFile = new File(properties.getVideoCache() + File.separator + fragmentName);
+        if (!fragmentFile.delete()) {
+            logger.error("Error in deleting file " + fragmentFile.getName());
+        }
+        logger.error(e.getMessage());
+        fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
+        fragmentRequest.setErrorMessage(e.getMessage());
+        fragmentRequestRepository.save(fragmentRequest);
+    }
+
     public Flux<ConversionStatus> convertFragment(
             FragmentRequest fragmentRequest,
             List<Line> lines
-    ) throws IOException, MovieNotFoundException, InterruptedException {
+    ) throws IOException, MovieNotFoundException, InterruptedException, SubtitlesNotFoundException, InvalidFFMPEGPropertiesException {
         Movie movie = fragmentRequest.getMovie();
         String fragmentName = nameGenerator(fragmentRequest, lines);
         String fragmentPathString = properties.getVideoCache() + File.separator + fragmentName;
         String startTimeString = getStartTimeString(fragmentRequest);
         Double timeLength = getTimeLength(fragmentRequest);
         File tempSubtitlesFile = createTempSubtitles(fragmentRequest, startTimeString);
-        Path fragmentPath = Path.of(fragmentPathString);
+        Path outputFilePath = Path.of(fragmentPathString);
 
-        if (fragmentPath.toFile().exists()) {
+        if (outputFilePath.toFile().exists()) {
             logger.debug("File exist");
             return Mono.just(new ConversionStatus(timeLength, fragmentName, EventType.COMPLETE)
-            ).flux().doOnComplete(() -> {
-                fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
-                fragmentRequest.setResultFileName(fragmentName);
-                fragmentRequestRepository.save(fragmentRequest);
-                tempSubtitlesFile.delete();
-            });
+            ).flux().doOnComplete(() -> onComplete(fragmentRequest, tempSubtitlesFile, fragmentName));
         } else {
             logger.debug("File not exist " + fragmentPathString);
         }
+
+        // TODO: 09.01.2020 Zrobić coś z tym set extension
+        movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath()), movie.getFileName()));
+
+        Path inputFilePath = Paths.get(movie.getPath(), movie.getFileName() + movie.getExtension());
 
         movie.setExtension(Utils.getMovieExtension(Paths.get(movie.getPath()), movie.getFileName()));
         logger.debug("Movie extension: " + movie.getExtension());
         logger.debug("Time lenght: " + timeLength);
         logger.debug("Start Time: " + startTimeString);
 
-        ProcessBuilder processBuilder = prepareProcess(
-                fragmentRequest,
-                startTimeString,
-                timeLength,
-                tempSubtitlesFile,
-                fragmentName
-        );
+        FFMPEGProperties ffmpegProperties = FFMPEGProperties.builder()
+                .conversionType(FFMPEGConversionType.VIDEO)
+                .inputFilePath(inputFilePath)
+                .outputFilePath(outputFilePath)
+                .startTime(startTimeString)
+                .timeLength(timeLength)
+                .audioCodec(properties.getConversionAudioCodec())
+                .videoCodec(properties.getConversionVideoCodec())
+                .subtitlesPath(tempSubtitlesFile.toPath())
+                .build();
+
+        logger.debug("Properties:" + ffmpegProperties.toString());
+
+        FFMPEGWrapper ffmpegWrapper = new FFMPEGWrapper();
+
+        ffmpegWrapper.setProperties(ffmpegProperties);
+
+        ffmpegWrapper.createProcessBuilder();
 
         fragmentRequest.setStatus(FragmentRequestStatus.CONVERTING);
         fragmentRequestRepository.save(fragmentRequest);
 
-        Process process = processBuilder.start();
-        final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        Stream<String> stringStream = reader.lines().peek(s -> {
-            if (s.contains("Conversion failed!")) {
-                throw new IllegalStateException("Conversion failed!");
-            }
-        });
-        Mono<ConversionStatus> toEvent = Mono.just(
+        Stream<String> stringStream = ffmpegWrapper.getInputStream();
+        Mono<ConversionStatus> timeLengthMono = Mono.just(
                 new ConversionStatus(timeLength, null, EventType.TO)
         );
-        Flux<ConversionStatus> percent = Flux.fromStream(stringStream)
+        Flux<ConversionStatus> percentFlux = Flux.fromStream(stringStream)
                 .doOnNext(s -> logger.debug(s))
                 .map(s -> new ConversionStatus(null, s, EventType.LOG));
-        Mono<ConversionStatus> complete = Mono.just(
+        Mono<ConversionStatus> completeMono = Mono.just(
                 new ConversionStatus(null, fragmentName, EventType.COMPLETE)
         );
-        return toEvent.concatWith(percent.concatWith(complete))
-                .doOnComplete(() -> {
-                    fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
-                    fragmentRequest.setResultFileName(fragmentName);
-                    fragmentRequestRepository.save(fragmentRequest);
-                })
-                .doOnError(e -> {
-                    File fragmentFile = new File(properties.getVideoCache() + File.separator + fragmentName);
-                    fragmentFile.delete();
-                    logger.error(e.getMessage());
-                    fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
-                    fragmentRequest.setErrorMessage(e.getMessage());
-                    fragmentRequestRepository.save(fragmentRequest);
-                })
-                .doFinally(object -> {
-                    tempSubtitlesFile.delete();
-                    try {
-                        reader.close();
-                    } catch (IOException ex) {
-                        logger.error(ex.getMessage());
-                    }
-                });
+        return Flux.concat(timeLengthMono, percentFlux, completeMono)
+                .doOnComplete(() -> onComplete(fragmentRequest, tempSubtitlesFile, fragmentName))
+                .doOnError(e -> onError(e, fragmentRequest, fragmentName));
+
     }
 
     private static class EventType {
@@ -129,6 +140,62 @@ public class ConverterService {
         private static final String LOG = "log";
         private static final String COMPLETE = "complete";
         private static final String ERROR = "error";
+    }
+
+    private File createTempSubtitles(
+            FragmentRequest fragmentRequest,
+            String startTimeString
+    ) throws IOException, InterruptedException, SubtitlesNotFoundException, InvalidFFMPEGPropertiesException {
+        logger.debug("Converting subtitles...");
+        Movie movie = fragmentRequest.getMovie();
+        File tempSubtitlesFile = File.createTempFile("temp", ".srt");
+        File inputFile = movie.getSubtitles().getSubtitleFile();
+        if (!inputFile.exists()) {
+            throw new SubtitlesNotFoundException("Subtitles file not found!");
+        }
+        if (!fragmentRequest.getLineEdits().isEmpty()) {
+            File preTempSubtitlesFile = File.createTempFile("preTemp", ".srt");
+            fragmentRequest.getMovie().getSubtitles().getLines().forEach(line ->
+                    fragmentRequest.getLineEdits().forEach(lineEdit -> {
+                        if (line.getId().equals(lineEdit.getLine().getId())) {
+                            logger.debug("Replacing "
+                                    + line.getId()
+                                    + "\n" + line.getTextLines()
+                                    + "\nto\n" + lineEdit.getId()
+                                    + "\n" + lineEdit.getText());
+                            line.setTextLines(lineEdit.getText());
+                        }
+                    }));
+            fragmentRequest.getMovie().getSubtitles().saveToFile(preTempSubtitlesFile);
+            inputFile = preTempSubtitlesFile;
+        }
+
+        FFMPEGProperties ffmpegProperties = FFMPEGProperties.builder()
+                .conversionType(FFMPEGConversionType.SUBTITLES)
+                .inputFilePath(inputFile.toPath())
+                .outputFilePath(tempSubtitlesFile.toPath())
+                .startTime(startTimeString)
+                .build();
+
+        FFMPEGWrapper ffmpegWrapper = new FFMPEGWrapper();
+
+        ffmpegWrapper.setProperties(ffmpegProperties);
+
+        ffmpegWrapper.createProcessBuilder();
+
+        Stream<String> stringStream = ffmpegWrapper.getInputStream();
+
+        stringStream.forEach(line -> logger.debug(line));
+
+        ffmpegWrapper.getProcess().waitFor();
+        logger.debug("Done converting subtitles. Exit status: " + ffmpegWrapper.getProcess().exitValue());
+        if (ffmpegWrapper.getProcess().exitValue() != 0) {
+            fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
+            fragmentRequest.setErrorMessage("Error in conversion of subtitles!");
+            fragmentRequestRepository.save(fragmentRequest);
+            throw new IllegalStateException("Error in conversion of subtitles!");
+        }
+        return tempSubtitlesFile;
     }
 
     private String nameGenerator(Movie movie, List<Line> lines) {
@@ -180,109 +247,47 @@ public class ConverterService {
         );
     }
 
-    private File createTempSubtitles(
-            FragmentRequest fragmentRequest,
-            String startTimeString
-    ) throws IOException, InterruptedException {
-        logger.debug("Converting subtitles...");
-        Movie movie = fragmentRequest.getMovie();
-        File tempSubtitlesFile = File.createTempFile("temp", ".srt");
-        File inputFile = new File(movie.getPath() + File.separator + movie.getSubtitles().getFilename());
-        if (!fragmentRequest.getLineEdits().isEmpty()) {
-            File preTempSubtitlesFile = File.createTempFile("preTemp", ".srt");
-            fragmentRequest.getMovie().getSubtitles().getLines().forEach(line ->
-                    fragmentRequest.getLineEdits().forEach(lineEdit -> {
-                        if (line.getId().equals(lineEdit.getLine().getId())) {
-                            logger.debug("Replacing "
-                                    + line.getId()
-                                    + "\n" + line.getTextLines()
-                                    + "\nto\n" + lineEdit.getId()
-                                    + "\n" + lineEdit.getText());
-                            line.setTextLines(lineEdit.getText());
-                        }
-                    }));
-            fragmentRequest.getMovie().getSubtitles().saveToFile(preTempSubtitlesFile);
-            inputFile = preTempSubtitlesFile;
-        }
-        ProcessBuilder subtitlesProcessBuilder = new ProcessBuilder();
-        subtitlesProcessBuilder.command(
-                "ffmpeg",
-                "-y",
-                "-i", inputFile.getAbsolutePath(),
-                "-ss", startTimeString,
-                tempSubtitlesFile.getPath()
-        );
-        Process subtitleProcess = subtitlesProcessBuilder.redirectErrorStream(true).start();
-        try (final BufferedReader subtitleReader = new BufferedReader(
-                new InputStreamReader(subtitleProcess.getInputStream()))) {
-            subtitleReader.lines().forEach(line -> logger.debug(line));
-        }
-        subtitleProcess.waitFor();
-        logger.debug("Done converting subtitles. Exit status: " + subtitleProcess.exitValue());
-        if (subtitleProcess.exitValue() != 0) {
-            fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
-            fragmentRequest.setErrorMessage("Error in conversion of subtitles!");
-            fragmentRequestRepository.save(fragmentRequest);
-            throw new IllegalStateException("Error in conversion of subtitles!");
-        }
-        return tempSubtitlesFile;
-    }
-
-    private ProcessBuilder prepareProcess(
-            FragmentRequest fragmentRequest,
-            String startTimeString,
-            Double timeLength,
-            File tempSubtitlesFile,
-            String fragmentName
-    ) {
-        Movie movie = fragmentRequest.getMovie();
-        ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.command(
-                "ffmpeg",
-                "-y",
-                "-ss", startTimeString,
-                "-i", movie.getPath() + File.separator + movie.getFileName() + movie.getExtension(),
-                "-ss", "00:00:01",
-                "-t", String.format(Locale.US, "%.3f", timeLength),
-                "-acodec", properties.getConversionAudioCodec(),
-                "-vcodec", properties.getConversionVideoCodec(),
-                "-preset", "veryslow",
-                "-vf", "subtitles=" + tempSubtitlesFile.getPath(),
-                properties.getVideoCache() + File.separator + fragmentName
-        );
-        processBuilder.redirectErrorStream(true);
-        return processBuilder;
-    }
-
-    public String getSnapshot(Line line) throws IOException, InterruptedException, MovieNotFoundException {
+    public String getSnapshot(Line line) throws InterruptedException, MovieNotFoundException, IOException, InvalidFFMPEGPropertiesException {
         Movie movie = line.getSubtitles().getMovie();
         String filename = nameGenerator(movie, Collections.singletonList(line));
         File file = new File(properties.getImageCache() + File.separator + filename + "." + properties.getConversionImageFormat());
         if (file.exists()) {
             return filename + "." + properties.getConversionImageFormat();
         }
-        movie.setExtension(getMovieExtension(Paths.get(movie.getPath()), movie.getFileName()));
+        try {
+            movie.setExtension(getMovieExtension(Paths.get(movie.getPath()), movie.getFileName()));
+        } catch (IOException e) {
+            throw new MovieNotFoundException("Movie file not Found!");
+        }
         String timeString = dateTimeFormatter.format(line.getTimeFrom());
         File tempSubtitles = Utils.createTempSubtitles(line);
-        ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.command(
-                "ffmpeg",
-                "-hide_banner",
-                "-n",
-                "-ss", timeString,
-                "-i", movie.getPath() + File.separator + movie.getFileName() + movie.getExtension(),
-                "-vf", "subtitles=" + tempSubtitles.getPath(),
-                "-frames:v", "1",
-                properties.getImageCache() + File.separator + filename + "." + properties.getConversionImageFormat()
-        );
-        Process process = processBuilder.start();
-        try (final BufferedReader snapshotReader = new BufferedReader(
-                new InputStreamReader(process.getInputStream()))) {
-            snapshotReader.lines().forEach(l -> logger.debug(l));
+
+        Path inputFilePath = Paths.get(movie.getPath(), movie.getFileName() + movie.getExtension());
+        Path outputFilePath = Paths.get(properties.getImageCache(), filename + "." + properties.getConversionImageFormat());
+        Path tempSubtitlesPath = Paths.get(tempSubtitles.getPath());
+
+        FFMPEGProperties ffmpegProperties = FFMPEGProperties.builder()
+                .conversionType(FFMPEGConversionType.IMAGE)
+                .inputFilePath(inputFilePath)
+                .outputFilePath(outputFilePath)
+                .subtitlesPath(tempSubtitlesPath)
+                .startTime(timeString)
+                .build();
+
+        FFMPEGWrapper ffmpegWrapper = new FFMPEGWrapper();
+
+        ffmpegWrapper.setProperties(ffmpegProperties);
+
+        ffmpegWrapper.createProcessBuilder();
+
+        Stream<String> stringStream = ffmpegWrapper.getInputStream();
+
+        stringStream.forEach(l -> logger.debug(l));
+        ffmpegWrapper.getProcess().waitFor();
+        logger.debug("Exit value: " + ffmpegWrapper.getProcess().exitValue());
+        if (!tempSubtitles.delete()) {
+            logger.error("Error in deleting file " + tempSubtitles.getName());
         }
-        process.waitFor();
-        logger.debug("Exit value: " + process.exitValue());
-        tempSubtitles.delete();
         return filename + "." + properties.getConversionImageFormat();
     }
 

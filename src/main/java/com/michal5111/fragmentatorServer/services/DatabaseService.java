@@ -17,17 +17,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.ParallelFlux;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Future;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 @Service
 public class DatabaseService {
@@ -49,10 +54,33 @@ public class DatabaseService {
         this.subtitlesRepository = subtitlesRepository;
     }
 
-    public ParallelFlux<Movie> updateDatabase() throws IOException, InterruptedException {
-        return Flux.fromStream(Utils.findMovies())
-                .filter(movie -> movieRepository
-                        .findByPathAndFileNameEquals(movie.getPath(), movie.getFileName()).isPresent())
+    static public Stream<Movie> findMovies() throws IOException {
+        Path[] paths = new Path[]{
+                Paths.get("/disks/G/Pobrane/Filmy"),
+                Paths.get("/disks/G/Pobrane/Seriale"),
+                Paths.get("/disks/E/Downloads/Filmy"),
+                Paths.get("/disks/E/Downloads/Seriale"),
+                Paths.get("/disks/G/kopia/Downloads/Seriale")
+        };
+        Stream<Movie>[] streams = new Stream[paths.length];
+        for (int i = 0; i < paths.length; i++) {
+            streams[i] = Files.walk(paths[i])
+                    .filter(Files::isRegularFile)
+                    .filter(Utils::endsWithSRT)
+                    .map(Path::toFile)
+                    .map(Utils::createMovieFromFile);
+
+        }
+        return Arrays.stream(streams)
+                .flatMap(Function.identity());
+        //.parallel()
+        //.sorted(Comparator.comparing(Movie::getFileName));
+    }
+
+    public Flux<Movie> updateDatabase() throws IOException {
+        return Flux.fromStream(findMovies())
+                .filter(movie -> !movieRepository
+                        .existsByPathAndFileNameEquals(movie.getPath(), movie.getFileName()))
                 .doOnNext(movie -> logger.info("Adding movie: " + movie.getPath() + "/" + movie.getFileName()))
                 .doOnNext(movie -> {
                     Subtitles subtitles = movie.getSubtitles();
@@ -71,15 +99,18 @@ public class DatabaseService {
                     }
                     subtitles.getLines().forEach(Line::parseTime);
                 })
-                .map(movieRepository::save)
-                .parallel()
-                .doOnComplete(() -> {
-                    try {
-                        updateIndex();
-                    } catch (InterruptedException e) {
-                        logger.error(e.getMessage());
-                    }
-                });
+//                .flatMap(movie -> {
+//                    try {
+//                        return Utils.getMovieExtension2(movie);
+//                    } catch (IOException | MovieNotFoundException e) {
+//                        //logger.error(e.getMessage());
+//                    }
+//                    return Flux.empty();
+//                })
+                .map(movieRepository::save);
+//                .doOnNext(movie -> logger.info(movie.toString()));
+        //.parallel();
+        //.doOnComplete(this::updateIndex);
     }
 
     public List<Line> updateDatabase(Long id) throws FileNotFoundException, UnknownSubtitlesTypeException {
@@ -99,11 +130,24 @@ public class DatabaseService {
         return lines;
     }
 
-    public String updateIndex() throws InterruptedException {
+    public String updateIndex() {
         FullTextEntityManager fullTextEntityManager
                 = Search.getFullTextEntityManager(entityManager);
-        fullTextEntityManager.createIndexer().startAndWait();
+        fullTextEntityManager.createIndexer().start();
         return "Success";
+    }
+
+    public Flux<Boolean> updateIndex2() {
+        return Flux.create(emitter -> {
+            FullTextEntityManager fullTextEntityManager
+                    = Search.getFullTextEntityManager(entityManager);
+            Future<?> future = fullTextEntityManager.createIndexer().start();
+            while (!future.isDone()) {
+                emitter.next(false);
+            }
+            emitter.next(true);
+            emitter.complete();
+        });
     }
 
     public List<Movie> cleanDatabase() {

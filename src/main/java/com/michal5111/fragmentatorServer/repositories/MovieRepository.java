@@ -20,9 +20,11 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
 
     List<Movie> findMovieByFileNameContainingIgnoreCase(String title);
 
-    @Query(value = "select * from movie where lower(file_name) like lower(concat('%',:title,'%')) limit 20",nativeQuery = true)
+    @Query(value = "select * from movie where lower(file_name) like lower(concat('%',:title,'%')) limit 20", nativeQuery = true)
     List<Movie> findTitleHints(@Param("title") String title);
 
-    Optional<Movie> findByPathAndFileNameEquals(String path,String filename);
+    Optional<Movie> findByPathAndFileNameEquals(String path, String filename);
+
+    Boolean existsByPathAndFileNameEquals(String path, String filename);
 
 }
