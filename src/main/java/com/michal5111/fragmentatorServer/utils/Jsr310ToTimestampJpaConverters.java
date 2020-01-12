@@ -7,13 +7,10 @@ import java.time.LocalTime;
 
 public class Jsr310ToTimestampJpaConverters {
     @Converter(autoApply = true)
-    public static class InstantToTimestampConverter implements AttributeConverter<LocalTime, Time>
-    {
+    public static class InstantToTimestampConverter implements AttributeConverter<LocalTime, Time> {
         @Override
-        public Time convertToDatabaseColumn(LocalTime localTime)
-        {
-            if (localTime == null)
-            {
+        public Time convertToDatabaseColumn(LocalTime localTime) {
+            if (localTime == null) {
                 return null;
             }
             long epochMilli = localTime.atDate(java.time.LocalDate.EPOCH)
@@ -24,10 +21,8 @@ public class Jsr310ToTimestampJpaConverters {
         }
 
         @Override
-        public LocalTime convertToEntityAttribute(Time ts)
-        {
-            if (ts == null)
-            {
+        public LocalTime convertToEntityAttribute(Time ts) {
+            if (ts == null) {
                 return null;
             }
             return ts.toLocalTime();

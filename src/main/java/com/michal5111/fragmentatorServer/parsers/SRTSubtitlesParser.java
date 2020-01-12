@@ -55,7 +55,14 @@ public class SRTSubtitlesParser implements SubtitlesParser {
                 }
                 line.setTextLines(stringBuilder.toString());
                 line.setSubtitles(subtitles);
-                line.parseTime();
+                try {
+                    line.parseTime();
+                } catch (IllegalArgumentException e) {
+                    logger.warn(subtitles.getMovie().getPath() + "/" + subtitles.getFilename());
+                    logger.warn(String.valueOf(line.getNumber()));
+                    logger.warn(line.getTimeString());
+                    logger.warn(e.getMessage());
+                }
                 lines.add(line);
             }
         }

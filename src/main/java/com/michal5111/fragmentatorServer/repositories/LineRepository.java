@@ -12,10 +12,10 @@ import java.util.List;
 public interface LineRepository extends CrudRepository<Line, Long> {
     List<Line> findAllByTextLinesContainingIgnoreCase(String phrase);
 
-    @Query(value = "select text_lines from line where lower(text_lines) like lower(concat('%',:phrase,'%')) limit 20",nativeQuery = true)
+    @Query(value = "select text_lines from line where lower(text_lines) like lower(concat('%',:phrase,'%')) limit 20", nativeQuery = true)
     List<String> findText(@Param("phrase") String phrase);
 
-    @Query(value = "select * from line where lower(text_lines) like lower(concat('%',:phrase,'%')) limit 20",nativeQuery = true)
+    @Query(value = "select * from line where lower(text_lines) like lower(concat('%',:phrase,'%')) limit 20", nativeQuery = true)
     List<Line> findText2(@Param("phrase") String phrase);
 
     @Query(value = "select * from line l where l.subtitles_id = :p_subtitles_id and lower(l.text_lines) like lower(concat('%',:p_phrase,'%'));", nativeQuery = true)

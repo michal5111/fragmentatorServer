@@ -3,7 +3,6 @@ package com.michal5111.fragmentatorServer.utils;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.domain.Movie;
 import com.michal5111.fragmentatorServer.domain.Subtitles;
-import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 import reactor.core.publisher.Flux;
 
 import java.io.BufferedWriter;
@@ -14,7 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalTime;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 public class Utils {
@@ -32,65 +30,41 @@ public class Utils {
                 .fileName(file.getName().substring(0, file.getName().lastIndexOf('.')))
                 .path(file.getParent())
                 .build();
-        try {
-            movie.setExtension(getMovieExtension(Paths.get(movie.getPath()), subtitles.getFilename()));
-        } catch (IOException | MovieNotFoundException e) {
-            e.printStackTrace();
-        }
         subtitles.setMovie(movie);
         return movie;
     }
 
-    public static String getMovieExtension(Path path, String srtFileName) throws IOException, MovieNotFoundException {
-        Optional<Path> video = Files.walk(path)
-                .filter(Files::isRegularFile)
-                .filter(x -> x.getFileName().toString().contains(srtFileName))
-                .filter(x -> {
-                    try {
-                        if (Files.probeContentType(x) == null) {
-                            return false;
-                        }
-                        return Files.probeContentType(x).contains("video") ||
-                                x.getFileName().toString().endsWith(".divx") ||
-                                x.getFileName().toString().endsWith(".rmvb");
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        return false;
-                    }
-                }).findAny();
-        if (video.isPresent()) {
-            String pathString = video.get().toString();
-            return pathString.substring(pathString.lastIndexOf("."));
-        }
-        throw new MovieNotFoundException("Movie not found");
-    }
-
-    public static Flux<Movie> getMovieExtension2(Movie movie) throws IOException, MovieNotFoundException {
+    public static Flux<Movie> getMovieExtension(Movie movie) {
         Path path = Paths.get(movie.getPath()).toAbsolutePath();
-        Stream<Movie> stream = Files.walk(path)
-                .filter(Files::isRegularFile)
-                .map(Path::getFileName)
-                .filter(x -> x.toString().contains(movie.getSubtitles().getFilename()))
-                .filter(x -> {
-                    try {
-                        if (Files.probeContentType(x) == null) {
+        String subtitlesFilename = movie.getSubtitles().getFilename();
+        Stream<Movie> stream;
+        try {
+            stream = Files.walk(path)
+                    .filter(Files::isRegularFile)
+                    .map(Path::getFileName)
+                    .filter(x -> x.toString().contains(subtitlesFilename.substring(0, subtitlesFilename.lastIndexOf("."))))
+                    .filter(fileName -> {
+                        try {
+                            if (Files.probeContentType(fileName) == null) {
+                                return false;
+                            }
+                            return Files.probeContentType(fileName).contains("video") ||
+                                    fileName.endsWith(".divx") ||
+                                    fileName.endsWith(".rmvb");
+                        } catch (IOException e) {
                             return false;
                         }
-                        return Files.probeContentType(x).contains("video") ||
-                                x.endsWith(".divx") ||
-                                x.endsWith(".rmvb");
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        return false;
-                    }
-                })
-                .map(Path::toString)
-                .filter(path1 -> path1.contains("."))
-                .map(path1 -> path1.substring(path1.lastIndexOf(".") + 1))
-                .map(s -> {
-                    movie.setExtension(s);
-                    return movie;
-                });
+                    })
+                    .map(Path::toString)
+                    .filter(path1 -> path1.contains("."))
+                    .map(path1 -> path1.substring(path1.lastIndexOf(".") + 1))
+                    .map(s -> {
+                        movie.setExtension(s);
+                        return movie;
+                    });
+        } catch (IOException e) {
+            return Flux.error(e);
+        }
         return Flux.fromStream(stream);
     }
 

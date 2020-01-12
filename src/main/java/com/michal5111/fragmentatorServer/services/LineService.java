@@ -3,14 +3,15 @@ package com.michal5111.fragmentatorServer.services;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.exceptions.InvalidFFMPEGPropertiesException;
 import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
-import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -25,14 +26,17 @@ public class LineService {
         this.converterService = converterService;
     }
 
-    public Map<String, String> getSnapshot(Long id, HttpServletRequest request) throws LineNotFoundException, InterruptedException, MovieNotFoundException, IOException, InvalidFFMPEGPropertiesException {
+    public Mono<ResponseEntity<Object>> getSnapshot(Long id, HttpServletRequest request) throws LineNotFoundException, IOException, InvalidFFMPEGPropertiesException {
         Optional<Line> optionalLine = lineRepository.findById(id);
         if (optionalLine.isEmpty()) {
             throw new LineNotFoundException("Line Not Found!");
         }
         Line line = optionalLine.get();
-        Map<String, String> map = new HashMap<>();
-        map.put("url", "http://" + request.getServerName() + ":" + request.getServerPort() + "/fragmentatorServer/snapshots/" + converterService.getSnapshot(line));
-        return map;
+        return converterService.getSnapshot(line)
+                .map(file -> ResponseEntity
+                        .status(HttpStatus.MOVED_PERMANENTLY)
+                        .header(HttpHeaders.LOCATION,
+                                "http://" + request.getServerName() + ":" + request.getServerPort() + "/fragmentatorServer/snapshots/" + file.getName())
+                        .build());
     }
 }

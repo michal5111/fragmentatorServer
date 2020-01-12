@@ -3,7 +3,6 @@ package com.michal5111.fragmentatorServer.services;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.domain.Movie;
 import com.michal5111.fragmentatorServer.domain.Subtitles;
-import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.UnknownSubtitlesTypeException;
 import com.michal5111.fragmentatorServer.parsers.SubtitlesParser;
 import com.michal5111.fragmentatorServer.parsers.SubtitlesParserFactory;
@@ -17,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
@@ -72,43 +72,40 @@ public class DatabaseService {
 
         }
         return Arrays.stream(streams)
-                .flatMap(Function.identity());
-        //.parallel()
+                .flatMap(Function.identity())
+                .parallel();
         //.sorted(Comparator.comparing(Movie::getFileName));
+    }
+
+    private Mono<Movie> parseSubtitles(Movie movie) {
+        return Mono.create(emitter -> {
+            Subtitles subtitles = movie.getSubtitles();
+            SubtitlesParserFactory subtitlesParserFactory = new SubtitlesParserFactory(subtitles.getFilename());
+            SubtitlesParser subtitlesParser;
+            try {
+                subtitlesParser = subtitlesParserFactory.create();
+                List<Line> lineList = subtitlesParser.parse(subtitles);
+                subtitles.setLines(lineList);
+            } catch (FileNotFoundException | UnknownSubtitlesTypeException e) {
+                emitter.error(e);
+            }
+            emitter.success(movie);
+        });
+    }
+
+    private Mono<Boolean> isMovieExists(Movie movie) {
+        return Mono.fromCallable(() -> !movieRepository
+                .existsByPathAndFileNameEquals(movie.getPath(), movie.getFileName()));
     }
 
     public Flux<Movie> updateDatabase() throws IOException {
         return Flux.fromStream(findMovies())
-                .filter(movie -> !movieRepository
-                        .existsByPathAndFileNameEquals(movie.getPath(), movie.getFileName()))
+                .filterWhen(this::isMovieExists)
                 .doOnNext(movie -> logger.info("Adding movie: " + movie.getPath() + "/" + movie.getFileName()))
-                .doOnNext(movie -> {
-                    Subtitles subtitles = movie.getSubtitles();
-                    SubtitlesParserFactory subtitlesParserFactory = new SubtitlesParserFactory(subtitles.getFilename());
-                    SubtitlesParser subtitlesParser = null;
-                    try {
-                        subtitlesParser = subtitlesParserFactory.create();
-                    } catch (UnknownSubtitlesTypeException e) {
-                        logger.error(e.getMessage());
-                    }
-                    try {
-                        List<Line> lineList = subtitlesParser.parse(subtitles);
-                        subtitles.setLines(lineList);
-                    } catch (FileNotFoundException e) {
-                        logger.error(e.getMessage());
-                    }
-                    subtitles.getLines().forEach(Line::parseTime);
-                })
-//                .flatMap(movie -> {
-//                    try {
-//                        return Utils.getMovieExtension2(movie);
-//                    } catch (IOException | MovieNotFoundException e) {
-//                        //logger.error(e.getMessage());
-//                    }
-//                    return Flux.empty();
-//                })
-                .map(movieRepository::save);
-//                .doOnNext(movie -> logger.info(movie.toString()));
+                .flatMap(this::parseSubtitles)
+                .flatMap(Utils::getMovieExtension)
+                .map(movieRepository::save)
+                .onErrorContinue((error, object) -> logger.error(error.getMessage()));
         //.parallel();
         //.doOnComplete(this::updateIndex);
     }
@@ -154,23 +151,18 @@ public class DatabaseService {
         List<Movie> deletedMovies = new LinkedList<>();
         List<Movie> movies = movieRepository.findAll();
         movies.forEach(movie -> {
-            try {
-                if (movie == null) {
-                    logger.debug("Movie is null");
-                    return;
-                }
-                logger.debug(movie.getPath());
-                logger.debug(movie.getFileName());
-                movie.setExtension(Utils.getMovieExtension(Path.of(movie.getPath()), movie.getFileName()));
-                logger.debug(movie.getExtension());
-                File movieFile = new File(movie.getPath(), movie.getFileName() + movie.getExtension());
-                File srtFile = movie.getSubtitles().getSubtitleFile();
-                if (!movieFile.exists() || !srtFile.exists()) {
-                    movieRepository.delete(movie);
-                    deletedMovies.add(movie);
-                }
-            } catch (IOException | MovieNotFoundException e) {
-                logger.debug(e.getMessage());
+            if (movie == null) {
+                logger.debug("Movie is null");
+                return;
+            }
+            logger.debug(movie.getPath());
+            logger.debug(movie.getFileName());
+            logger.debug(movie.getExtension());
+            File movieFile = new File(movie.getPath(), movie.getFileName() + movie.getExtension());
+            File srtFile = movie.getSubtitles().getSubtitleFile();
+            if (!movieFile.exists() || !srtFile.exists()) {
+                movieRepository.delete(movie);
+                deletedMovies.add(movie);
             }
         });
         return deletedMovies;

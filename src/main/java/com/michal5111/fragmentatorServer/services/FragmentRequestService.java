@@ -5,8 +5,6 @@ import com.michal5111.fragmentatorServer.domain.FragmentRequest;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.exceptions.FragmentRequestNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.InvalidFFMPEGPropertiesException;
-import com.michal5111.fragmentatorServer.exceptions.MovieNotFoundException;
-import com.michal5111.fragmentatorServer.exceptions.SubtitlesNotFoundException;
 import com.michal5111.fragmentatorServer.repositories.FragmentRequestRepository;
 import com.michal5111.fragmentatorServer.repositories.LineEditRepository;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
@@ -47,7 +45,7 @@ public class FragmentRequestService {
         return fragmentRequest;
     }
 
-    public Flux<ConverterService.ConversionStatus> get(Long id) throws InterruptedException, MovieNotFoundException, IOException, FragmentRequestNotFoundException, SubtitlesNotFoundException, InvalidFFMPEGPropertiesException {
+    public Flux<ConverterService.ConversionStatus> get(Long id) throws IOException, FragmentRequestNotFoundException, InvalidFFMPEGPropertiesException {
         Optional<FragmentRequest> optionalFragmentRequest = fragmentRequestRepository.findById(id);
         if (optionalFragmentRequest.isEmpty()) {
             throw new FragmentRequestNotFoundException("Fragment Request Not Found!");

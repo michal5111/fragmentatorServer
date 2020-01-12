@@ -41,10 +41,9 @@ public class Subtitles implements Serializable {
     @EqualsAndHashCode.Exclude
     private Movie movie;
 
-    public boolean saveToFile(File file) throws IOException {
-        BufferedWriter bw = new BufferedWriter(new FileWriter(file, false));
+    public void saveToFile(File file) {
         lines.forEach(line -> {
-            try {
+            try (BufferedWriter bw = new BufferedWriter(new FileWriter(file, false))) {
                 bw.write(String.valueOf(line.getNumber()));
                 bw.newLine();
                 bw.write(line.getTimeString());
@@ -57,8 +56,6 @@ public class Subtitles implements Serializable {
                 e.printStackTrace();
             }
         });
-        bw.close();
-        return true;
     }
 
     public File getSubtitleFile() {

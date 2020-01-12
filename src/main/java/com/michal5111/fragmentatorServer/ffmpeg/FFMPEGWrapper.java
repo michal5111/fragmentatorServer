@@ -3,12 +3,12 @@ package com.michal5111.fragmentatorServer.ffmpeg;
 import com.michal5111.fragmentatorServer.enums.FFMPEGConversionType;
 import com.michal5111.fragmentatorServer.exceptions.InvalidFFMPEGPropertiesException;
 import lombok.Data;
+import reactor.core.publisher.Flux;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Locale;
-import java.util.stream.Stream;
 
 @Data
 public class FFMPEGWrapper {
@@ -18,6 +18,10 @@ public class FFMPEGWrapper {
     private ProcessBuilder processBuilder;
 
     private Process process;
+
+    public FFMPEGWrapper(FFMPEGProperties properties) {
+        this.properties = properties;
+    }
 
     private ProcessBuilder prepareVideoProcess() {
         ProcessBuilder processBuilder = new ProcessBuilder();
@@ -110,7 +114,7 @@ public class FFMPEGWrapper {
         }
     }
 
-    public void createProcessBuilder() throws InvalidFFMPEGPropertiesException {
+    public void prepare() throws InvalidFFMPEGPropertiesException {
         checkProperties();
         switch (properties.getConversionType()) {
             case VIDEO:
@@ -125,13 +129,16 @@ public class FFMPEGWrapper {
         }
     }
 
-    public Stream<String> getInputStream() throws IOException {
+    public Flux<String> getInputFlux() throws IOException {
         process = processBuilder.redirectErrorStream(true).start();
-        final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        return reader.lines().peek(s -> {
-            if (s.contains("Conversion failed!")) {
-                throw new IllegalStateException("Conversion failed!");
-            }
-        });
+        final BufferedReader reader = new BufferedReader(
+                new InputStreamReader(process.getInputStream())
+        );
+        return Flux.fromStream(reader.lines())
+                .doOnNext(s -> {
+                    if (s.contains("Conversion failed!")) {
+                        throw new IllegalStateException("Conversion failed!");
+                    }
+                });
     }
 }

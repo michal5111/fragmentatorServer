@@ -32,4 +32,8 @@ public class LineEdit {
     private Line line;
 
     private String text;
+
+    @Transient
+    @JsonIgnore
+    private String originalText;
 }

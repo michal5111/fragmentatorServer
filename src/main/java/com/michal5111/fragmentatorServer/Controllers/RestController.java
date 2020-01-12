@@ -3,7 +3,10 @@ package com.michal5111.fragmentatorServer.Controllers;
 import com.michal5111.fragmentatorServer.domain.FragmentRequest;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.domain.Movie;
-import com.michal5111.fragmentatorServer.exceptions.*;
+import com.michal5111.fragmentatorServer.exceptions.FragmentRequestNotFoundException;
+import com.michal5111.fragmentatorServer.exceptions.InvalidFFMPEGPropertiesException;
+import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
+import com.michal5111.fragmentatorServer.exceptions.UnknownSubtitlesTypeException;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
 import com.michal5111.fragmentatorServer.repositories.MovieRepository;
 import com.michal5111.fragmentatorServer.services.*;
@@ -13,14 +16,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.Map;
 
 @org.springframework.web.bind.annotation.RestController
 @RequestMapping("api")
@@ -63,13 +68,15 @@ public class RestController {
     @GetMapping(path = "/fragmentRequest/{id}", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
     public Flux<ConverterService.ConversionStatus> requestFragment(
             @PathVariable("id") Long id
-    ) throws FragmentRequestNotFoundException, InterruptedException, MovieNotFoundException, IOException, SubtitlesNotFoundException, InvalidFFMPEGPropertiesException {
-        return fragmentRequestService.get(id);
+    ) throws FragmentRequestNotFoundException, IOException, InvalidFFMPEGPropertiesException {
+        return fragmentRequestService.get(id)
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     @GetMapping(value = "updateDatabase", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
     public Flux<Movie> updateDatabase() throws IOException {
-        return databaseService.updateDatabase();
+        return databaseService.updateDatabase()
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     @GetMapping("updateDatabase/{id}")
@@ -104,7 +111,7 @@ public class RestController {
     }
 
     @GetMapping(value = "/updateIndex", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public String updateIndex() throws InterruptedException {
+    public String updateIndex() {
         return databaseService.updateIndex();
     }
 
@@ -121,11 +128,12 @@ public class RestController {
     }
 
     @GetMapping("/lineSnapshot")
-    public Map<String, String> getLineSnapshot(
+    public Mono<ResponseEntity<Object>> getLineSnapshot(
             @RequestParam("lineId") Long lineId,
             HttpServletRequest request
-    ) throws LineNotFoundException, InterruptedException, MovieNotFoundException, IOException, InvalidFFMPEGPropertiesException {
-        return lineService.getSnapshot(lineId, request);
+    ) throws LineNotFoundException, IOException, InvalidFFMPEGPropertiesException {
+        return lineService.getSnapshot(lineId, request)
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     @PostMapping("/progress")
@@ -134,8 +142,6 @@ public class RestController {
         char c;
         StringBuilder stringBuilder = new StringBuilder();
         while ((i = dataStream.read()) != -1) {
-
-            // converts integer to character
             c = (char) i;
             if (c != '\n') {
                 stringBuilder.append(c);
@@ -143,7 +149,6 @@ public class RestController {
                 logger.debug(stringBuilder.toString());
                 stringBuilder = new StringBuilder();
             }
-            // prints character
         }
     }
 }

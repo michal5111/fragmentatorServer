@@ -1,6 +1,7 @@
 package com.michal5111.fragmentatorServer.domain;
 
-import com.fasterxml.jackson.annotation.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 import org.hibernate.search.annotations.Field;
 import org.hibernate.search.annotations.Indexed;
@@ -39,20 +40,14 @@ public class Line implements Serializable {
     @Column(length = 4096, nullable = false)
     private String textLines;
 
-    public boolean parseTime() {
+    public void parseTime() {
         String[] timeStringSplit = timeString.split(" --> ");
         if (timeStringSplit.length < 2) {
-            return false;
+            throw new IllegalArgumentException("Time string is invalid");
         }
-        try {
-            DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss,SSS");
-            timeFrom = LocalTime.from(dateTimeFormatter.parse(timeStringSplit[0]));
-            timeTo = LocalTime.from((dateTimeFormatter.parse(timeStringSplit[1])));
-        } catch (Exception e) {
-            System.out.println(subtitles.getMovie().getPath()+"/"+subtitles.getFilename());
-            e.printStackTrace();
-        }
-        return true;
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss,SSS");
+        timeFrom = LocalTime.from(dateTimeFormatter.parse(timeStringSplit[0]));
+        timeTo = LocalTime.from((dateTimeFormatter.parse(timeStringSplit[1])));
     }
 
 //    @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
