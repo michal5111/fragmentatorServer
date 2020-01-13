@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,7 +44,7 @@ public class FragmentRequestService {
         return fragmentRequest;
     }
 
-    public Flux<ConverterService.ConversionStatus> get(Long id) throws IOException, FragmentRequestNotFoundException, InvalidFFMPEGPropertiesException {
+    public Flux<ConverterService.ConversionStatus> get(Long id) throws FragmentRequestNotFoundException, InvalidFFMPEGPropertiesException {
         Optional<FragmentRequest> optionalFragmentRequest = fragmentRequestRepository.findById(id);
         if (optionalFragmentRequest.isEmpty()) {
             throw new FragmentRequestNotFoundException("Fragment Request Not Found!");

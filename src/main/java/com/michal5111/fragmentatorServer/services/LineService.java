@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import javax.servlet.http.HttpServletRequest;
-import java.io.IOException;
 import java.util.Optional;
 
 @Service
@@ -26,7 +25,7 @@ public class LineService {
         this.converterService = converterService;
     }
 
-    public Mono<ResponseEntity<Object>> getSnapshot(Long id, HttpServletRequest request) throws LineNotFoundException, IOException, InvalidFFMPEGPropertiesException {
+    public Mono<ResponseEntity<Void>> getSnapshot(Long id, HttpServletRequest request) throws LineNotFoundException, InvalidFFMPEGPropertiesException {
         Optional<Line> optionalLine = lineRepository.findById(id);
         if (optionalLine.isEmpty()) {
             throw new LineNotFoundException("Line Not Found!");

@@ -78,11 +78,11 @@ public class Utils {
 
     public static File createTempSubtitles(Line line) throws IOException {
         File temp = File.createTempFile("temp", ".srt");
-        BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(temp));
-        bufferedWriter.write("1\n");
-        bufferedWriter.write("00:00:00.000 --> 10:00:00.000\n");
-        bufferedWriter.write(line.getTextLines() + "\n");
-        bufferedWriter.close();
+        try (BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(temp))) {
+            bufferedWriter.write("1\n");
+            bufferedWriter.write("00:00:00.000 --> 10:00:00.000\n");
+            bufferedWriter.write(line.getTextLines() + "\n");
+        }
         return temp;
     }
 

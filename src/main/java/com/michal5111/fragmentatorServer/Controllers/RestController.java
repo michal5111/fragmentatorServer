@@ -43,7 +43,7 @@ public class RestController {
 
     private final SearchService searchService;
 
-    private Logger logger = LoggerFactory.getLogger(RestController.class);
+    private final Logger logger = LoggerFactory.getLogger(RestController.class);
 
     public RestController(MovieRepository movieRepository,
                           LineRepository lineRepository,
@@ -68,7 +68,7 @@ public class RestController {
     @GetMapping(path = "/fragmentRequest/{id}", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
     public Flux<ConverterService.ConversionStatus> requestFragment(
             @PathVariable("id") Long id
-    ) throws FragmentRequestNotFoundException, IOException, InvalidFFMPEGPropertiesException {
+    ) throws FragmentRequestNotFoundException, InvalidFFMPEGPropertiesException {
         return fragmentRequestService.get(id)
                 .subscribeOn(Schedulers.boundedElastic());
     }
@@ -128,12 +128,13 @@ public class RestController {
     }
 
     @GetMapping("/lineSnapshot")
-    public Mono<ResponseEntity<Object>> getLineSnapshot(
+    public Mono<ResponseEntity<Void>> getLineSnapshot(
             @RequestParam("lineId") Long lineId,
             HttpServletRequest request
-    ) throws LineNotFoundException, IOException, InvalidFFMPEGPropertiesException {
+    ) throws LineNotFoundException, InvalidFFMPEGPropertiesException {
         return lineService.getSnapshot(lineId, request)
-                .subscribeOn(Schedulers.boundedElastic());
+                .subscribeOn(Schedulers.boundedElastic())
+                .onErrorResume(Mono::error);
     }
 
     @PostMapping("/progress")

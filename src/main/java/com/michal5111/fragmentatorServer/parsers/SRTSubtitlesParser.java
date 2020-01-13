@@ -14,7 +14,7 @@ import java.util.Scanner;
 
 public class SRTSubtitlesParser implements SubtitlesParser {
 
-    private Logger logger = LoggerFactory.getLogger(SRTSubtitlesParser.class);
+    private final Logger logger = LoggerFactory.getLogger(SRTSubtitlesParser.class);
 
     public List<Line> parse(Subtitles subtitles) throws FileNotFoundException {
         File subtitleFile = subtitles.getSubtitleFile();

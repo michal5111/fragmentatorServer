@@ -33,8 +33,8 @@ public class ConverterService {
 
     private final FragmentRequestRepository fragmentRequestRepository;
     private final Properties properties;
-    private DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
-    private Logger logger = LoggerFactory.getLogger(ConverterService.class);
+    private final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
+    private final Logger logger = LoggerFactory.getLogger(ConverterService.class);
 
     public ConverterService(FragmentRequestRepository fragmentRequestRepository, Properties properties) {
         this.fragmentRequestRepository = fragmentRequestRepository;
@@ -64,10 +64,7 @@ public class ConverterService {
         fragmentRequestRepository.save(fragmentRequest);
     }
 
-    public Flux<ConversionStatus> convertFragment(
-            FragmentRequest fragmentRequest,
-            List<Line> lines
-    ) throws IOException, InvalidFFMPEGPropertiesException {
+    public Flux<ConversionStatus> convertFragment(FragmentRequest fragmentRequest, List<Line> lines) throws InvalidFFMPEGPropertiesException {
         Movie movie = fragmentRequest.getMovie();
         String fragmentName = nameGenerator(fragmentRequest, lines);
         String fragmentPathString = properties.getVideoCache() + File.separator + fragmentName;
@@ -113,7 +110,7 @@ public class ConverterService {
                 new ConversionStatus(timeLength, null, EventType.TO)
         );
         Flux<ConversionStatus> percentFlux = ffmpegWrapper.getInputFlux()
-                .doOnNext(s -> logger.debug(s))
+                .doOnNext(logger::debug)
                 .map(s -> new ConversionStatus(null, s, EventType.LOG));
         Mono<ConversionStatus> completeMono = Mono.just(
                 new ConversionStatus(null, fragmentName, EventType.COMPLETE)
@@ -121,7 +118,6 @@ public class ConverterService {
         return Flux.concat(timeLengthMono, percentFlux, completeMono)
                 .doOnComplete(() -> onComplete(fragmentRequest, tempSubtitlesFile, fragmentName))
                 .doOnError(e -> onError(e, fragmentRequest, fragmentName));
-
     }
 
     private void replaceLinesWithEdits(FragmentRequest fragmentRequest) {
@@ -140,17 +136,24 @@ public class ConverterService {
 
     }
 
-    private Mono<File> createTempSubtitles(
-            FragmentRequest fragmentRequest,
-            String startTimeString
-    ) throws IOException, InvalidFFMPEGPropertiesException {
+    private Mono<File> createTempSubtitles(FragmentRequest fragmentRequest, String startTimeString) throws InvalidFFMPEGPropertiesException {
         logger.debug("Converting subtitles...");
         Movie movie = fragmentRequest.getMovie();
         Subtitles subtitles = movie.getSubtitles();
-        File outputFile = File.createTempFile("temp", ".srt");
+        File outputFile;
+        try {
+            outputFile = File.createTempFile("temp", ".srt");
+        } catch (IOException e) {
+            return Mono.error(e);
+        }
         File inputFile = movie.getSubtitles().getSubtitleFile();
         if (!fragmentRequest.getLineEdits().isEmpty()) {
-            File preTempSubtitlesFile = File.createTempFile("preTemp", ".srt");
+            File preTempSubtitlesFile;
+            try {
+                preTempSubtitlesFile = File.createTempFile("preTemp", ".srt");
+            } catch (IOException e) {
+                return Mono.error(e);
+            }
             replaceLinesWithEdits(fragmentRequest);
             subtitles.saveToFile(preTempSubtitlesFile);
             restoreOriginalLines(fragmentRequest);
@@ -169,7 +172,7 @@ public class ConverterService {
         ffmpegWrapper.prepare();
 
         return ffmpegWrapper.getInputFlux()
-                .doOnNext(line -> logger.debug(line))
+                .doOnNext(logger::debug)
                 .then(waitForProcess(ffmpegWrapper.getProcess()))
                 .doOnNext(returnValue -> logger.debug("Done converting subtitles. Exit status: " + returnValue))
                 .map(returnValue -> outputFile)
@@ -233,7 +236,7 @@ public class ConverterService {
         );
     }
 
-    public Mono<File> getSnapshot(Line line) throws IOException, InvalidFFMPEGPropertiesException {
+    public Mono<File> getSnapshot(Line line) throws InvalidFFMPEGPropertiesException {
         Movie movie = line.getSubtitles().getMovie();
         String filename = nameGenerator(movie, Collections.singletonList(line));
         File file = new File(properties.getImageCache() + File.separator + filename + "." + properties.getConversionImageFormat());
@@ -241,7 +244,12 @@ public class ConverterService {
             return Mono.just(file);
         }
         String timeString = dateTimeFormatter.format(line.getTimeFrom());
-        File tempSubtitles = Utils.createTempSubtitles(line);
+        File tempSubtitles;
+        try {
+            tempSubtitles = Utils.createTempSubtitles(line);
+        } catch (IOException e) {
+            return Mono.error(e);
+        }
 
         Path inputFilePath = Paths.get(movie.getPath(), movie.getFileName() + "." + movie.getExtension());
         Path outputFilePath = Paths.get(properties.getImageCache(), filename + "." + properties.getConversionImageFormat());
@@ -260,7 +268,7 @@ public class ConverterService {
         ffmpegWrapper.prepare();
 
         return ffmpegWrapper.getInputFlux()
-                .doOnNext(s -> logger.debug(s))
+                .doOnNext(logger::debug)
                 .doOnComplete(() -> {
                     if (!tempSubtitles.delete()) {
                         logger.error("Error in deleting file " + tempSubtitles.getName());

@@ -13,7 +13,7 @@ import java.util.Locale;
 @Data
 public class FFMPEGWrapper {
 
-    private FFMPEGProperties properties;
+    private final FFMPEGProperties properties;
 
     private ProcessBuilder processBuilder;
 
@@ -129,8 +129,12 @@ public class FFMPEGWrapper {
         }
     }
 
-    public Flux<String> getInputFlux() throws IOException {
-        process = processBuilder.redirectErrorStream(true).start();
+    public Flux<String> getInputFlux() {
+        try {
+            process = processBuilder.redirectErrorStream(true).start();
+        } catch (IOException e) {
+            return Flux.error(e);
+        }
         final BufferedReader reader = new BufferedReader(
                 new InputStreamReader(process.getInputStream())
         );
