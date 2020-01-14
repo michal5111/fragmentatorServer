@@ -4,7 +4,6 @@ import com.michal5111.fragmentatorServer.domain.FragmentRequest;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.domain.Movie;
 import com.michal5111.fragmentatorServer.exceptions.FragmentRequestNotFoundException;
-import com.michal5111.fragmentatorServer.exceptions.InvalidFFMPEGPropertiesException;
 import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.UnknownSubtitlesTypeException;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
@@ -68,7 +67,7 @@ public class RestController {
     @GetMapping(path = "/fragmentRequest/{id}", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
     public Flux<ConverterService.ConversionStatus> requestFragment(
             @PathVariable("id") Long id
-    ) throws FragmentRequestNotFoundException, InvalidFFMPEGPropertiesException {
+    ) throws FragmentRequestNotFoundException {
         return fragmentRequestService.get(id)
                 .subscribeOn(Schedulers.boundedElastic());
     }
@@ -131,7 +130,7 @@ public class RestController {
     public Mono<ResponseEntity<Void>> getLineSnapshot(
             @RequestParam("lineId") Long lineId,
             HttpServletRequest request
-    ) throws LineNotFoundException, InvalidFFMPEGPropertiesException {
+    ) throws LineNotFoundException {
         return lineService.getSnapshot(lineId, request)
                 .subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(Mono::error);

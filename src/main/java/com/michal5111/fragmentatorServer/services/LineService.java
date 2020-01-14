@@ -1,7 +1,6 @@
 package com.michal5111.fragmentatorServer.services;
 
 import com.michal5111.fragmentatorServer.domain.Line;
-import com.michal5111.fragmentatorServer.exceptions.InvalidFFMPEGPropertiesException;
 import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
 import org.springframework.http.HttpHeaders;
@@ -25,7 +24,7 @@ public class LineService {
         this.converterService = converterService;
     }
 
-    public Mono<ResponseEntity<Void>> getSnapshot(Long id, HttpServletRequest request) throws LineNotFoundException, InvalidFFMPEGPropertiesException {
+    public Mono<ResponseEntity<Void>> getSnapshot(Long id, HttpServletRequest request) throws LineNotFoundException {
         Optional<Line> optionalLine = lineRepository.findById(id);
         if (optionalLine.isEmpty()) {
             throw new LineNotFoundException("Line Not Found!");

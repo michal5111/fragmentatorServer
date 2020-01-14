@@ -64,7 +64,7 @@ public class ConverterService {
         fragmentRequestRepository.save(fragmentRequest);
     }
 
-    public Flux<ConversionStatus> convertFragment(FragmentRequest fragmentRequest, List<Line> lines) throws InvalidFFMPEGPropertiesException {
+    public Flux<ConversionStatus> convertFragment(FragmentRequest fragmentRequest, List<Line> lines) {
         Movie movie = fragmentRequest.getMovie();
         String fragmentName = nameGenerator(fragmentRequest, lines);
         String fragmentPathString = properties.getVideoCache() + File.separator + fragmentName;
@@ -101,7 +101,11 @@ public class ConverterService {
 
         FFMPEGWrapper ffmpegWrapper = new FFMPEGWrapper(ffmpegProperties);
 
-        ffmpegWrapper.prepare();
+        try {
+            ffmpegWrapper.prepare();
+        } catch (InvalidFFMPEGPropertiesException e) {
+            return Flux.error(e);
+        }
 
         fragmentRequest.setStatus(FragmentRequestStatus.CONVERTING);
         fragmentRequestRepository.save(fragmentRequest);
@@ -136,7 +140,7 @@ public class ConverterService {
 
     }
 
-    private Mono<File> createTempSubtitles(FragmentRequest fragmentRequest, String startTimeString) throws InvalidFFMPEGPropertiesException {
+    private Mono<File> createTempSubtitles(FragmentRequest fragmentRequest, String startTimeString) {
         logger.debug("Converting subtitles...");
         Movie movie = fragmentRequest.getMovie();
         Subtitles subtitles = movie.getSubtitles();
@@ -169,7 +173,11 @@ public class ConverterService {
 
         FFMPEGWrapper ffmpegWrapper = new FFMPEGWrapper(ffmpegProperties);
 
-        ffmpegWrapper.prepare();
+        try {
+            ffmpegWrapper.prepare();
+        } catch (InvalidFFMPEGPropertiesException e) {
+            return Mono.error(e);
+        }
 
         return ffmpegWrapper.getInputFlux()
                 .doOnNext(logger::debug)
@@ -236,7 +244,7 @@ public class ConverterService {
         );
     }
 
-    public Mono<File> getSnapshot(Line line) throws InvalidFFMPEGPropertiesException {
+    public Mono<File> getSnapshot(Line line) {
         Movie movie = line.getSubtitles().getMovie();
         String filename = nameGenerator(movie, Collections.singletonList(line));
         File file = new File(properties.getImageCache() + File.separator + filename + "." + properties.getConversionImageFormat());
@@ -265,7 +273,11 @@ public class ConverterService {
 
         FFMPEGWrapper ffmpegWrapper = new FFMPEGWrapper(ffmpegProperties);
 
-        ffmpegWrapper.prepare();
+        try {
+            ffmpegWrapper.prepare();
+        } catch (InvalidFFMPEGPropertiesException e) {
+            return Mono.error(e);
+        }
 
         return ffmpegWrapper.getInputFlux()
                 .doOnNext(logger::debug)
