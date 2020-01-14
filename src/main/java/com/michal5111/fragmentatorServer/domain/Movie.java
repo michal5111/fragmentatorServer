@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.*;
 import lombok.*;
 import org.hibernate.search.annotations.Field;
 import org.hibernate.search.annotations.Indexed;
-import org.hibernate.search.annotations.TermVector;
 
 import javax.persistence.*;
 import java.util.List;
@@ -26,10 +25,10 @@ public class Movie {
     @JsonIdentityReference(alwaysAsId = true)
     @OneToOne(mappedBy = "movie", cascade = CascadeType.ALL, orphanRemoval = true)
     private Subtitles subtitles;
-    @Field(termVector = TermVector.YES)
+    @Field
     @Column(nullable = false, unique = true)
     private String fileName;
-    @Field(termVector = TermVector.YES)
+    @Field
     @Column(nullable = false)
     private String path;
     private String extension;

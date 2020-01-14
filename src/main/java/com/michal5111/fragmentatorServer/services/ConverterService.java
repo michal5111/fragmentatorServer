@@ -42,41 +42,42 @@ public class ConverterService {
     }
 
     private void onComplete(
-            FragmentRequest fragmentRequest,
-            File tempSubtitlesFile,
-            String fragmentName) {
+            FragmentRequest fragmentRequest) {
         fragmentRequest.setStatus(FragmentRequestStatus.COMPLETE);
-        fragmentRequest.setResultFileName(fragmentName);
         fragmentRequestRepository.save(fragmentRequest);
-        if (!tempSubtitlesFile.delete()) {
-            logger.error("Error in deleting file " + tempSubtitlesFile.getName());
-        }
+        fragmentRequest.getTempFiles().clear();
     }
 
-    private void onError(Throwable e, FragmentRequest fragmentRequest, String fragmentName) {
-        File fragmentFile = new File(properties.getVideoCache() + File.separator + fragmentName);
-        if (!fragmentFile.delete()) {
-            logger.error("Error in deleting file " + fragmentFile.getName());
-        }
+    private void onError(Throwable e, FragmentRequest fragmentRequest) {
+        fragmentRequest.getTempFiles().add(
+                new File(properties.getVideoCache() + File.separator + fragmentRequest.getResultFileName())
+        );
         logger.error(e.getMessage());
         fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
         fragmentRequest.setErrorMessage(e.getMessage());
         fragmentRequestRepository.save(fragmentRequest);
+        fragmentRequest.getTempFiles().clear();
     }
 
-    public Flux<ConversionStatus> convertFragment(FragmentRequest fragmentRequest, List<Line> lines) {
+    public Flux<ConversionStatus> convertFragment(FragmentRequest fragmentRequest) {
+        return startConvertingFragment(fragmentRequest)
+                .doOnComplete(() -> onComplete(fragmentRequest))
+                .doOnError(e -> onError(e, fragmentRequest));
+    }
+
+    private Flux<ConversionStatus> startConvertingFragment(FragmentRequest fragmentRequest) {
         Movie movie = fragmentRequest.getMovie();
-        String fragmentName = nameGenerator(fragmentRequest, lines);
-        String fragmentPathString = properties.getVideoCache() + File.separator + fragmentName;
+        fragmentRequest.setResultFileName(nameGenerator(fragmentRequest));
+        String fragmentPathString = properties.getVideoCache() + File.separator + fragmentRequest.getResultFileName();
         String startTimeString = getStartTimeString(fragmentRequest);
         Double timeLength = getTimeLength(fragmentRequest);
         File tempSubtitlesFile = createTempSubtitles(fragmentRequest, startTimeString).block();
+        fragmentRequest.getTempFiles().add(tempSubtitlesFile);
         Path outputFilePath = Path.of(fragmentPathString);
 
         if (outputFilePath.toFile().exists()) {
             logger.debug("File exists");
-            return Mono.just(new ConversionStatus(timeLength, fragmentName, EventType.COMPLETE)
-            ).flux().doOnComplete(() -> onComplete(fragmentRequest, tempSubtitlesFile, fragmentName));
+            return Mono.just(new ConversionStatus(timeLength, fragmentRequest.getResultFileName(), EventType.COMPLETE)).flux();
         } else {
             logger.debug("File does not exists " + fragmentPathString);
         }
@@ -117,11 +118,9 @@ public class ConverterService {
                 .doOnNext(logger::debug)
                 .map(s -> new ConversionStatus(null, s, EventType.LOG));
         Mono<ConversionStatus> completeMono = Mono.just(
-                new ConversionStatus(null, fragmentName, EventType.COMPLETE)
+                new ConversionStatus(null, fragmentRequest.getResultFileName(), EventType.COMPLETE)
         );
-        return Flux.concat(timeLengthMono, percentFlux, completeMono)
-                .doOnComplete(() -> onComplete(fragmentRequest, tempSubtitlesFile, fragmentName))
-                .doOnError(e -> onError(e, fragmentRequest, fragmentName));
+        return Flux.concat(timeLengthMono, percentFlux, completeMono);
     }
 
     private void replaceLinesWithEdits(FragmentRequest fragmentRequest) {
@@ -146,7 +145,9 @@ public class ConverterService {
         Subtitles subtitles = movie.getSubtitles();
         File outputFile;
         try {
-            outputFile = File.createTempFile("temp", ".srt");
+            outputFile = fragmentRequest.getTempFiles().add(
+                    File.createTempFile("temp", ".srt")
+            );
         } catch (IOException e) {
             return Mono.error(e);
         }
@@ -154,7 +155,9 @@ public class ConverterService {
         if (!fragmentRequest.getLineEdits().isEmpty()) {
             File preTempSubtitlesFile;
             try {
-                preTempSubtitlesFile = File.createTempFile("preTemp", ".srt");
+                preTempSubtitlesFile = fragmentRequest.getTempFiles().add(
+                        File.createTempFile("preTemp", ".srt")
+                );
             } catch (IOException e) {
                 return Mono.error(e);
             }
@@ -204,7 +207,8 @@ public class ConverterService {
         return String.valueOf(stringBuilder.toString().hashCode());
     }
 
-    private String nameGenerator(FragmentRequest fragmentRequest, List<Line> lines) {
+    private String nameGenerator(FragmentRequest fragmentRequest) {
+        List<Line> lines = fragmentRequest.getLines();
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append(fragmentRequest.getMovie().getFileName());
         stringBuilder.append(fragmentRequest.getStartOffset());

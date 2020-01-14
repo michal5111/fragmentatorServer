@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 import org.hibernate.search.annotations.Field;
 import org.hibernate.search.annotations.Indexed;
+import org.hibernate.search.annotations.IndexedEmbedded;
 import org.hibernate.search.annotations.TermVector;
 
 import javax.persistence.*;
@@ -56,6 +57,7 @@ public class Line implements Serializable {
     @JoinColumn(name = "subtitles_id", nullable = false, referencedColumnName = "id")
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
+    @IndexedEmbedded(depth = 2)
     private Subtitles subtitles;
 
     @JsonIgnore

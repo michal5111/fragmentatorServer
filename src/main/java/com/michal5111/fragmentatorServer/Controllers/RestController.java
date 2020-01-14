@@ -3,7 +3,6 @@ package com.michal5111.fragmentatorServer.Controllers;
 import com.michal5111.fragmentatorServer.domain.FragmentRequest;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.domain.Movie;
-import com.michal5111.fragmentatorServer.exceptions.FragmentRequestNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
 import com.michal5111.fragmentatorServer.exceptions.UnknownSubtitlesTypeException;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
@@ -65,9 +64,7 @@ public class RestController {
     }
 
     @GetMapping(path = "/fragmentRequest/{id}", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
-    public Flux<ConverterService.ConversionStatus> requestFragment(
-            @PathVariable("id") Long id
-    ) throws FragmentRequestNotFoundException {
+    public Flux<ConverterService.ConversionStatus> requestFragment(@PathVariable("id") Long id) {
         return fragmentRequestService.get(id)
                 .subscribeOn(Schedulers.boundedElastic());
     }
@@ -122,8 +119,8 @@ public class RestController {
 
     @GetMapping("/searchPhrase")
     public Page<Line> searchLineIndexed2(
-            @RequestParam("phrase") String phrase, Pageable pageable) {
-        return searchService.search(phrase, pageable);
+            @RequestParam("phrase") String phrase, @RequestParam(name = "title", required = false) String title, Pageable pageable) {
+        return searchService.search(phrase, title, pageable);
     }
 
     @GetMapping("/lineSnapshot")

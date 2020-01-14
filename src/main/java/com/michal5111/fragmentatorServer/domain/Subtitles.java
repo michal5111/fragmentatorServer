@@ -3,6 +3,8 @@ package com.michal5111.fragmentatorServer.domain;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
+import org.hibernate.search.annotations.Field;
+import org.hibernate.search.annotations.IndexedEmbedded;
 
 import javax.persistence.*;
 import java.io.*;
@@ -26,6 +28,7 @@ public class Subtitles implements Serializable {
     @JsonIgnore
     @OneToMany(mappedBy = "subtitles", cascade = CascadeType.ALL, orphanRemoval = true)
     protected List<Line> lines = new LinkedList<>();
+    @Field
     @Column(nullable = false, unique = true)
     private String filename;
 //    @Transient
@@ -39,6 +42,7 @@ public class Subtitles implements Serializable {
 //    @JsonIdentityReference(alwaysAsId = true)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
+    @IndexedEmbedded
     private Movie movie;
 
     public void saveToFile(File file) {

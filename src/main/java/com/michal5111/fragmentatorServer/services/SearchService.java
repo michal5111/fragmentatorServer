@@ -22,13 +22,16 @@ public class SearchService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    public Page<Line> search(String phrase, Pageable pageable) {
+    public Page<Line> search(String phrase, String filter, Pageable pageable) {
         FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
         QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()
                 .buildQueryBuilder()
                 .forEntity(Line.class)
                 .get();
-        Query query = queryBuilder
+
+        Query query;
+
+        Query textQuery = queryBuilder
                 .phrase()
                 .withSlop(2)
                 //.simpleQueryString()
@@ -36,7 +39,27 @@ public class SearchService {
                 .sentence(phrase)
                 //.matching(phrase)
                 .createQuery();
-        FullTextQuery jpaQuery = fullTextEntityManager.createFullTextQuery(query, Line.class);
+
+        if (filter != null && !"".equals(filter)) {
+            Query titleQuery = queryBuilder
+                    .phrase()
+                    .withSlop(2)
+                    .onField("subtitles.movie.fileName")
+                    .sentence(filter)
+                    .createQuery();
+
+            query = queryBuilder.bool()
+                    .must(textQuery)
+                    .must(titleQuery)
+                    .createQuery();
+            FullTextQuery jpaQuery = fullTextEntityManager.createFullTextQuery(query, Line.class);
+            jpaQuery.setFirstResult((int) pageable.getOffset());
+            jpaQuery.setMaxResults(pageable.getPageSize());
+            jpaQuery.setSort(Sort.RELEVANCE);
+            List<Line> result = jpaQuery.getResultList();
+            return new PageImpl<>(result, pageable, jpaQuery.getResultSize());
+        }
+        FullTextQuery jpaQuery = fullTextEntityManager.createFullTextQuery(textQuery, Line.class);
         jpaQuery.setFirstResult((int) pageable.getOffset());
         jpaQuery.setMaxResults(pageable.getPageSize());
         jpaQuery.setSort(Sort.RELEVANCE);

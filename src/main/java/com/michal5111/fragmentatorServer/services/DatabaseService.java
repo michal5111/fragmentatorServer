@@ -93,14 +93,14 @@ public class DatabaseService {
         });
     }
 
-    private Mono<Boolean> isMovieExists(Movie movie) {
+    private Mono<Boolean> movieExists(Movie movie) {
         return Mono.fromCallable(() -> !movieRepository
                 .existsByPathAndFileNameEquals(movie.getPath(), movie.getFileName()));
     }
 
     public Flux<Movie> updateDatabase() throws IOException {
         return Flux.fromStream(findMovies())
-                .filterWhen(this::isMovieExists)
+                .filterWhen(this::movieExists)
                 .doOnNext(movie -> logger.info("Adding movie: " + movie.getPath() + "/" + movie.getFileName()))
                 .flatMap(this::parseSubtitles)
                 .flatMap(Utils::getMovieExtension)

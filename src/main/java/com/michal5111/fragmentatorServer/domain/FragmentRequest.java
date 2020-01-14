@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.michal5111.fragmentatorServer.deserializers.LineIdDeserializer;
 import com.michal5111.fragmentatorServer.deserializers.MovieIdDeserializer;
 import com.michal5111.fragmentatorServer.enums.FragmentRequestStatus;
+import com.michal5111.fragmentatorServer.utils.TempFileStore;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 import javax.persistence.*;
+import java.util.LinkedList;
 import java.util.List;
 
 @Entity
@@ -63,4 +65,12 @@ public class FragmentRequest {
     private List<LineEdit> lineEdits;
 
     private String resultFileName;
+
+    @Transient
+    @JsonIgnore
+    private TempFileStore tempFiles = new TempFileStore();
+
+    @Transient
+    @JsonIgnore
+    private List<Line> lines = new LinkedList<>();
 }

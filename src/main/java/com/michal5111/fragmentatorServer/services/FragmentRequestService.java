@@ -4,6 +4,7 @@ import com.michal5111.fragmentatorServer.Controllers.RestController;
 import com.michal5111.fragmentatorServer.domain.FragmentRequest;
 import com.michal5111.fragmentatorServer.domain.Line;
 import com.michal5111.fragmentatorServer.exceptions.FragmentRequestNotFoundException;
+import com.michal5111.fragmentatorServer.exceptions.LineNotFoundException;
 import com.michal5111.fragmentatorServer.repositories.FragmentRequestRepository;
 import com.michal5111.fragmentatorServer.repositories.LineEditRepository;
 import com.michal5111.fragmentatorServer.repositories.LineRepository;
@@ -28,7 +29,10 @@ public class FragmentRequestService {
 
     private final Logger logger = LoggerFactory.getLogger(RestController.class);
 
-    public FragmentRequestService(FragmentRequestRepository fragmentRequestRepository, LineEditRepository lineEditRepository, LineRepository lineRepository, ConverterService converterService) {
+    public FragmentRequestService(FragmentRequestRepository fragmentRequestRepository,
+                                  LineEditRepository lineEditRepository,
+                                  LineRepository lineRepository,
+                                  ConverterService converterService) {
         this.fragmentRequestRepository = fragmentRequestRepository;
         this.lineEditRepository = lineEditRepository;
         this.lineRepository = lineRepository;
@@ -43,19 +47,23 @@ public class FragmentRequestService {
         return fragmentRequest;
     }
 
-    public Flux<ConverterService.ConversionStatus> get(Long id) throws FragmentRequestNotFoundException {
+    public Flux<ConverterService.ConversionStatus> get(Long id) {
         Optional<FragmentRequest> optionalFragmentRequest = fragmentRequestRepository.findById(id);
         if (optionalFragmentRequest.isEmpty()) {
-            throw new FragmentRequestNotFoundException("Fragment Request Not Found!");
+            return Flux.error(new FragmentRequestNotFoundException("Fragment Request Not Found!"));
         }
         FragmentRequest fragmentRequest = optionalFragmentRequest.get();
         List<Line> lines = lineRepository.findAllByIdBetween(
                 fragmentRequest.getStartLine().getId(),
                 fragmentRequest.getStopLine().getId()
         );
+        if (lines.isEmpty()) {
+            return Flux.error(new LineNotFoundException("Lines not found!"));
+        }
+        fragmentRequest.setLines(lines);
         logger.info("Request for: " + fragmentRequest.getMovie().getFileName() + " "
                 + fragmentRequest.getStartLine().getTextLines());
-        return converterService.convertFragment(fragmentRequest, lines);
+        return converterService.convertFragment(fragmentRequest);
     }
 
     public String progress(String progress) {
