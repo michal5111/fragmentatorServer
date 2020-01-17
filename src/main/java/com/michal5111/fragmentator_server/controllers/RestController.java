@@ -23,6 +23,7 @@ import reactor.core.scheduler.Schedulers;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.ParseException;
 import java.util.List;
 
 @org.springframework.web.bind.annotation.RestController
@@ -41,6 +42,8 @@ public class RestController {
 
     private final SearchService searchService;
 
+    private final YouTubeDlService youTubeDlService;
+
     private final Logger logger = LoggerFactory.getLogger(RestController.class);
 
     public RestController(MovieRepository movieRepository,
@@ -48,13 +51,15 @@ public class RestController {
                           DatabaseService databaseService,
                           FragmentRequestService fragmentRequestService,
                           LineService lineService,
-                          SearchService searchService) {
+                          SearchService searchService,
+                          YouTubeDlService youTubeDlService) {
         this.movieRepository = movieRepository;
         this.lineRepository = lineRepository;
         this.databaseService = databaseService;
         this.fragmentRequestService = fragmentRequestService;
         this.lineService = lineService;
         this.searchService = searchService;
+        this.youTubeDlService = youTubeDlService;
     }
 
     @PostMapping("/fragmentRequest")
@@ -76,7 +81,7 @@ public class RestController {
     }
 
     @GetMapping("updateDatabase/{id}")
-    public List<Line> updateSubtitles(@PathVariable("id") Long id) throws IOException, UnknownSubtitlesTypeException {
+    public List<Line> updateSubtitles(@PathVariable("id") Long id) throws UnknownSubtitlesTypeException, ParseException {
         return databaseService.updateDatabase(id);
     }
 
@@ -107,7 +112,7 @@ public class RestController {
     }
 
     @GetMapping(value = "/updateIndex", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public String updateIndex() {
+    public ResponseEntity<Void> updateIndex() {
         return databaseService.updateIndex();
     }
 
@@ -146,5 +151,18 @@ public class RestController {
                 stringBuilder = new StringBuilder();
             }
         }
+    }
+
+    @PutMapping(value = "/youtube", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
+    public Flux<String> getYoutubeInfo(@RequestParam String url) {
+        return youTubeDlService.getInfo(url)
+                .doOnNext(logger::debug)
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    @GetMapping(value = "/youtube", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
+    public Flux<YouTubeDlService.DownloadStatus> getYoutubeVideo(@RequestParam String url) {
+        return youTubeDlService.download(url)
+                .subscribeOn(Schedulers.boundedElastic());
     }
 }

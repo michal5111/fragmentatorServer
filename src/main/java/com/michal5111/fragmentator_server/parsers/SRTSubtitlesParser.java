@@ -2,11 +2,11 @@ package com.michal5111.fragmentator_server.parsers;
 
 import com.michal5111.fragmentator_server.domain.Line;
 import com.michal5111.fragmentator_server.domain.Subtitles;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.util.Strings;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -14,59 +14,101 @@ import java.util.Scanner;
 
 public class SRTSubtitlesParser implements SubtitlesParser {
 
-    private final Logger logger = LoggerFactory.getLogger(SRTSubtitlesParser.class);
-
-    public List<Line> parse(Subtitles subtitles) throws FileNotFoundException {
+    public List<Line> parse(Subtitles subtitles) throws ParseException {
         File subtitleFile = subtitles.getSubtitleFile();
         List<Line> lines = new LinkedList<>();
-        if (subtitleFile != null) {
-            if (!subtitleFile.exists() || !subtitleFile.canRead()) {
-                throw new FileNotFoundException();
-            }
-        } else return lines;
-        Scanner scanner = new Scanner(subtitleFile).useDelimiter("(\n\n|\r\n\r\n)");
-        logger.debug("Parsing {}", subtitleFile.getAbsolutePath());
-        while (scanner.hasNext()) {
-            String scannedString = scanner.next();
-            logger.debug(scannedString);
-            String[] splitString = scannedString.split("\n");
-            if (splitString.length < 3) {
-                continue;
-            }
-            splitString[0] = splitString[0].replaceAll("(ď»ż|\uFEFF|˙ţ|\n)?", "");
-            Line line = new Line();
-            int number = 0;
-            try {
-                if (!splitString[0].trim().equals(""))
-                    number = Integer.parseInt(splitString[0].trim().strip());
-            } catch (NumberFormatException e) {
-                logger.warn("Invalid {}/{}", subtitles.getMovie().getPath(), subtitles.getFilename());
-                logger.warn(Arrays.toString(splitString));
-                logger.warn(e.getMessage());
-            } finally {
+        int lineNumber = 0;
+        try (Scanner scanner = new Scanner(subtitleFile).useDelimiter("(\n\n|\r\n\r\n)")) {
+            while (scanner.hasNext()) {
+                lineNumber++;
+                String scannedString = scanner.next();
+                if (Strings.isBlank(scannedString)) {
+                    continue;
+                }
+                String[] splitString = splitLines(scannedString);
+                splitString = fixLineOffset(splitString);
+                if (splitString.length < 3) {
+                    continue;
+                }
+                Line line = new Line();
+                int number = Integer.parseInt(splitString[0].trim().strip());
+
+                String textLines = buildTextString(splitString);
+
                 line.setNumber(number);
                 line.setTimeString(splitString[1].trim());
-                StringBuilder stringBuilder = new StringBuilder();
-                for (int i = 2; i < splitString.length; i++) {
-                    stringBuilder.append(splitString[i].trim());
-                    if (i != splitString.length - 1) {
-                        stringBuilder.append("<br>");
-                    }
-                }
-                line.setTextLines(stringBuilder.toString());
+                line.setTextLines(textLines);
                 line.setSubtitles(subtitles);
-                try {
-                    line.parseTime();
-                } catch (IllegalArgumentException e) {
-                    logger.warn("Unable to parse time: {}/{}", subtitles.getMovie().getPath(), subtitles.getFilename());
-                    logger.warn(String.valueOf(line.getNumber()));
-                    logger.warn(line.getTimeString());
-                    logger.warn(e.getMessage());
-                }
+                line.parseTime();
                 lines.add(line);
             }
+        } catch (NumberFormatException e) {
+            throw new ParseException(
+                    String.format(
+                            "Unable to parse line number! %s/%s %s %s line number: %d",
+                            subtitles.getMovie().getPath(),
+                            subtitles.getFilename(),
+                            e.getClass().getSimpleName(),
+                            e.getMessage(),
+                            lineNumber
+                    )
+                    , lineNumber
+            );
+        } catch (IllegalArgumentException e) {
+            throw new ParseException(
+                    String.format(
+                            "Unable to parse time: %s/%s %s %s  line number: %d",
+                            subtitles.getMovie().getPath(),
+                            subtitles.getFilename(),
+                            e.getClass().getSimpleName(),
+                            e.getMessage(),
+                            lineNumber
+                    )
+                    , lineNumber
+            );
+        } catch (FileNotFoundException e) {
+            throw new ParseException("File not found or is unreadable", 0);
+        } catch (Exception e) {
+            throw new ParseException(
+                    String.format(
+                            "%s/%s %s %s line number: %d",
+                            subtitles.getMovie().getPath(),
+                            subtitles.getFilename(),
+                            e.getClass().getSimpleName(),
+                            e.getMessage(),
+                            lineNumber
+                    ),
+                    lineNumber
+            );
         }
-        scanner.close();
         return lines;
+    }
+
+    private String[] splitLines(String string) {
+        String[] splitString = string.split("\n");
+        splitString[0] = splitString[0]
+                .replaceAll("(\uFEFF|˙ţ|\n)?", "")
+                .replace("ď»ż", "1");
+        return splitString;
+    }
+
+    private String buildTextString(String[] strings) {
+        StringBuilder stringBuilder = new StringBuilder();
+        for (int i = 2; i < strings.length; i++) {
+            stringBuilder.append(strings[i].trim());
+            if (i != strings.length - 1) {
+                stringBuilder.append("<br>");
+            }
+        }
+        return stringBuilder.toString();
+    }
+
+    private String[] fixLineOffset(String[] strings) {
+        int offset = 0;
+        int size = strings.length;
+        while (offset < size && Strings.isBlank(strings[offset])) {
+            offset++;
+        }
+        return Arrays.copyOfRange(strings, offset, size);
     }
 }

@@ -25,6 +25,6 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
 
     Optional<Movie> findByPathAndFileNameEquals(String path, String filename);
 
-    Boolean existsByPathAndFileNameEquals(String path, String filename);
+    Boolean existsByFileNameEquals(String filename);
 
 }

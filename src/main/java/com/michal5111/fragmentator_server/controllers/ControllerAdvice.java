@@ -24,6 +24,7 @@ public class ControllerAdvice {
         map.put("error", throwable.getClass().getSimpleName());
         map.put("message", throwable.getMessage());
         map.put("path", request.getContextPath());
+        map.put("trace", throwable.getStackTrace());
         return map;
     }
 

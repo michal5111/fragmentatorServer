@@ -86,7 +86,7 @@ public class ConverterService {
 
         if (outputFilePath.toFile().exists()) {
             logger.debug("File exists");
-            return Mono.just(new ConversionStatus(timeLength, fragmentRequest.getResultFileName(), EventType.COMPLETE)).flux();
+            return Flux.just(new ConversionStatus(timeLength, fragmentRequest.getResultFileName(), EventType.COMPLETE));
         } else {
             logger.debug("File does not exists {}", outputFilePath);
         }
@@ -107,7 +107,7 @@ public class ConverterService {
                 .subtitlesPath(tempSubtitlesFile.toPath())
                 .build();
 
-        logger.debug("Properties: {}", ffmpegProperties.toString());
+        logger.debug("Properties: {}", ffmpegProperties);
 
         FFMPEGWrapper ffmpegWrapper = new FFMPEGWrapper(ffmpegProperties);
 

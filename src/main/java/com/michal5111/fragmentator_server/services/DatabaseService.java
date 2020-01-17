@@ -15,6 +15,7 @@ import org.hibernate.search.jpa.FullTextEntityManager;
 import org.hibernate.search.jpa.Search;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -22,11 +23,11 @@ import reactor.core.publisher.Mono;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -86,29 +87,29 @@ public class DatabaseService {
                 subtitlesParser = subtitlesParserFactory.create();
                 List<Line> lineList = subtitlesParser.parse(subtitles);
                 subtitles.setLines(lineList);
-            } catch (FileNotFoundException | UnknownSubtitlesTypeException e) {
+                emitter.success(movie);
+            } catch (UnknownSubtitlesTypeException | ParseException e) {
                 emitter.error(e);
             }
-            emitter.success(movie);
         });
     }
 
     private Mono<Boolean> movieExists(Movie movie) {
         return Mono.fromCallable(() -> !movieRepository
-                .existsByPathAndFileNameEquals(movie.getPath(), movie.getFileName()));
+                .existsByFileNameEquals(movie.getFileName()));
     }
 
     public Flux<Movie> updateDatabase() throws IOException {
         return Flux.fromStream(findMovies())
                 .filterWhen(this::movieExists)
-                .doOnNext(movie -> logger.info("Adding movie: {}/{}", movie.getPath(), movie.getFileName()))
+                //.doOnNext(movie -> logger.info("Adding movie: {}/{}", movie.getPath(), movie.getFileName()))
                 .flatMap(this::parseSubtitles)
                 .flatMap(Utils::getMovieExtension)
                 .map(movieRepository::save)
-                .onErrorContinue((error, object) -> logger.error(error.getMessage()));
+                .onErrorContinue(this::updateDatabaseExceptionHandler);
     }
 
-    public List<Line> updateDatabase(Long id) throws FileNotFoundException, UnknownSubtitlesTypeException {
+    public List<Line> updateDatabase(Long id) throws UnknownSubtitlesTypeException, ParseException {
         List<Line> lineList = lineRepository.findAllBySubtitles_Movie_Id(id);
         lineRepository.deleteAll(lineList);
         Optional<Movie> optionalMovie = movieRepository.findById(id);
@@ -125,11 +126,11 @@ public class DatabaseService {
         return lines;
     }
 
-    public String updateIndex() {
+    public ResponseEntity<Void> updateIndex() {
         FullTextEntityManager fullTextEntityManager
                 = Search.getFullTextEntityManager(entityManager);
         fullTextEntityManager.createIndexer().start();
-        return "Success";
+        return ResponseEntity.ok().build();
     }
 
     public Flux<Boolean> updateIndex2() {
@@ -164,5 +165,9 @@ public class DatabaseService {
             }
         });
         return deletedMovies;
+    }
+
+    private void updateDatabaseExceptionHandler(Throwable throwable, Object object) {
+        logger.error("Error in adding movie {} {}", throwable.getClass().getSimpleName(), throwable.getMessage());
     }
 }
