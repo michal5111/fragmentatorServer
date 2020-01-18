@@ -20,6 +20,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Indexed
+@EqualsAndHashCode
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Table(indexes = {@Index(columnList = "textLines"),@Index(columnList = "subtitles_id")})
 public class Line implements Serializable {
@@ -27,15 +28,19 @@ public class Line implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Exclude
     private Long id;
+
     private int number;
-    @EqualsAndHashCode.Exclude
+
     private String timeString;
+
     @JsonIgnore
     @Column(columnDefinition = "TIME(3)")
     private LocalTime timeFrom;
+
     @JsonIgnore
     @Column(columnDefinition = "TIME(3)")
     private LocalTime timeTo;
+
     @Field(termVector = TermVector.YES)
     @Lob
     @Column(length = 4096, nullable = false)

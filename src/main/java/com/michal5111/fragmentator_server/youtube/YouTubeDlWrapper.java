@@ -17,8 +17,6 @@ public class YouTubeDlWrapper {
 
     private ProcessBuilder processBuilder;
 
-    private Process process;
-
     public YouTubeDlWrapper(YouTubeDlProperties youTubeDlProperties) {
         this.youTubeDlProperties = youTubeDlProperties;
     }
@@ -81,6 +79,7 @@ public class YouTubeDlWrapper {
 
     public Flux<String> getInputFlux() {
         processBuilder.redirectErrorStream(true);
+        Process process;
         try {
             process = processBuilder.start();
         } catch (IOException e) {

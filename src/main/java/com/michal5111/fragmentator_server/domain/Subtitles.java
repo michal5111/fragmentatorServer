@@ -22,12 +22,16 @@ public class Subtitles implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Exclude
     private Long id;
+
     @JsonIgnore
     @Transient
+    @EqualsAndHashCode.Exclude
     protected File subtitleFile;
+
     @JsonIgnore
     @OneToMany(mappedBy = "subtitles", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Line> lines = new LinkedList<>();
+
     @Field
     @Column(nullable = false, unique = true)
     private String filename;

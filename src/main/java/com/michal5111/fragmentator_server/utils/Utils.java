@@ -52,8 +52,8 @@ public class Utils {
                                 return false;
                             }
                             return Files.probeContentType(fileName).contains("video") ||
-                                    fileName.endsWith(".divx") ||
-                                    fileName.endsWith(".rmvb");
+                                    fileName.endsWith("divx") ||
+                                    fileName.endsWith("rmvb");
                         } catch (IOException e) {
                             return false;
                         }

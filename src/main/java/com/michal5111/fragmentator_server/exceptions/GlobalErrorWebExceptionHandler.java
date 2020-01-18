@@ -36,6 +36,6 @@ public class GlobalErrorWebExceptionHandler extends AbstractErrorWebExceptionHan
 
         return ServerResponse.status(HttpStatus.BAD_REQUEST)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(BodyInserters.fromObject(errorPropertiesMap));
+                .body(BodyInserters.fromValue(errorPropertiesMap));
     }
 }

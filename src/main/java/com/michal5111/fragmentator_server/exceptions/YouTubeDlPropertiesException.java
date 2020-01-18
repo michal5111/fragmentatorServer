@@ -1,6 +1,6 @@
 package com.michal5111.fragmentator_server.exceptions;
 
-public class YouTubeDlPropertiesException extends Throwable {
+public class YouTubeDlPropertiesException extends Exception {
     public YouTubeDlPropertiesException() {
     }
 

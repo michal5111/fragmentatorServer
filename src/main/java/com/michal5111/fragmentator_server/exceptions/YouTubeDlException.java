@@ -1,6 +1,6 @@
 package com.michal5111.fragmentator_server.exceptions;
 
-public class YouTubeDlException extends Throwable {
+public class YouTubeDlException extends Exception {
     public YouTubeDlException() {
     }
 

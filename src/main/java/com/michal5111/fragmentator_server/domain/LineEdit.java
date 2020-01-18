@@ -1,16 +1,15 @@
 package com.michal5111.fragmentator_server.domain;
 
 import com.fasterxml.jackson.annotation.*;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.michal5111.fragmentator_server.deserializers.LineIdDeserializer;
 import lombok.Data;
 
 import javax.persistence.*;
+import java.io.Serializable;
 
 @Entity
 @Data
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-public class LineEdit {
+public class LineEdit implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,7 +25,6 @@ public class LineEdit {
     @JsonProperty("lineId")
     @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
     @JsonIdentityReference(alwaysAsId = true)
-    @JsonDeserialize(using = LineIdDeserializer.class)
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "line_id", referencedColumnName = "id")
     private Line line;

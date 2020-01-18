@@ -21,7 +21,7 @@ public interface LineRepository extends CrudRepository<Line, Long> {
     @Query(value = "select * from line l where l.subtitles_id = :p_subtitles_id and lower(l.text_lines) like lower(concat('%',:p_phrase,'%'));", nativeQuery = true)
     List<Line> findFilteredLines(@Param("p_subtitles_id") Long movieId, @Param("p_phrase") String phrase);
 
-    List<Line> findAllBySubtitles_Movie_Id(@Param("p_movie_id") Long movieId);
+    List<Line> findAllBySubtitlesMovieId(@Param("p_movie_id") Long movieId);
 
     List<Line> findAllByIdBetween(Long startId, Long stopId);
 }

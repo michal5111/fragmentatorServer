@@ -22,9 +22,6 @@ public class SRTSubtitlesParser implements SubtitlesParser {
             while (scanner.hasNext()) {
                 lineNumber++;
                 String scannedString = scanner.next();
-                if (Strings.isBlank(scannedString)) {
-                    continue;
-                }
                 String[] splitString = splitLines(scannedString);
                 splitString = fixLineOffset(splitString);
                 if (splitString.length < 3) {
@@ -86,9 +83,10 @@ public class SRTSubtitlesParser implements SubtitlesParser {
 
     private String[] splitLines(String string) {
         String[] splitString = string.split("\n");
-        splitString[0] = splitString[0]
-                .replaceAll("(\uFEFF|˙ţ|\n)?", "")
-                .replace("ď»ż", "1");
+        if (splitString.length > 0) {
+            splitString[0] = splitString[0]
+                    .replaceAll("\uFEFF", "");
+        }
         return splitString;
     }
 

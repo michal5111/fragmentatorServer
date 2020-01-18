@@ -1,6 +1,5 @@
 package com.michal5111.fragmentator_server.services;
 
-import com.michal5111.fragmentator_server.controllers.RestController;
 import com.michal5111.fragmentator_server.domain.FragmentRequest;
 import com.michal5111.fragmentator_server.domain.Line;
 import com.michal5111.fragmentator_server.exceptions.FragmentRequestNotFoundException;
@@ -27,7 +26,7 @@ public class FragmentRequestService {
 
     private final ConverterService converterService;
 
-    private final Logger logger = LoggerFactory.getLogger(RestController.class);
+    private final Logger logger = LoggerFactory.getLogger(FragmentRequestService.class);
 
     public FragmentRequestService(FragmentRequestRepository fragmentRequestRepository,
                                   LineEditRepository lineEditRepository,

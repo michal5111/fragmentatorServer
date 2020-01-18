@@ -1,9 +1,6 @@
 package com.michal5111.fragmentator_server.domain;
 
 import com.fasterxml.jackson.annotation.*;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.michal5111.fragmentator_server.deserializers.LineIdDeserializer;
-import com.michal5111.fragmentator_server.deserializers.MovieIdDeserializer;
 import com.michal5111.fragmentator_server.enums.FragmentRequestStatus;
 import com.michal5111.fragmentator_server.utils.TempFileStore;
 import lombok.Data;
@@ -11,6 +8,7 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 import javax.persistence.*;
+import java.io.Serializable;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -19,14 +17,14 @@ import java.util.List;
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @EqualsAndHashCode
 @ToString
-public class FragmentRequest {
+public class FragmentRequest implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Exclude
     private Long id;
 
     @JsonProperty("movieId")
-    @JsonDeserialize(using = MovieIdDeserializer.class)
     @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
     @JsonIdentityReference(alwaysAsId = true)
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -38,12 +36,13 @@ public class FragmentRequest {
     private Double stopOffset;
 
     @Enumerated(EnumType.STRING)
+    @EqualsAndHashCode.Exclude
     private FragmentRequestStatus status = FragmentRequestStatus.PENDING;
 
+    @EqualsAndHashCode.Exclude
     private String errorMessage;
 
     @JsonProperty("startLineId")
-    @JsonDeserialize(using = LineIdDeserializer.class)
     @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
     @JsonIdentityReference(alwaysAsId = true)
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -51,7 +50,6 @@ public class FragmentRequest {
     private Line startLine;
 
     @JsonProperty("stopLineId")
-    @JsonDeserialize(using = LineIdDeserializer.class)
     @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
     @JsonIdentityReference(alwaysAsId = true)
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -64,13 +62,16 @@ public class FragmentRequest {
     @OneToMany(mappedBy = "fragmentRequest", orphanRemoval = true)
     private List<LineEdit> lineEdits;
 
+    @EqualsAndHashCode.Exclude
     private String resultFileName;
 
     @Transient
     @JsonIgnore
-    private TempFileStore tempFiles = new TempFileStore();
+    @EqualsAndHashCode.Exclude
+    private transient TempFileStore tempFiles = new TempFileStore();
 
     @Transient
     @JsonIgnore
-    private List<Line> lines = new LinkedList<>();
+    @EqualsAndHashCode.Exclude
+    private transient List<Line> lines = new LinkedList<>();
 }

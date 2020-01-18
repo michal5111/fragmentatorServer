@@ -6,6 +6,7 @@ import org.hibernate.search.annotations.Field;
 import org.hibernate.search.annotations.Indexed;
 
 import javax.persistence.*;
+import java.io.Serializable;
 import java.util.List;
 
 @Entity
@@ -14,23 +15,28 @@ import java.util.List;
 @AllArgsConstructor
 @Data
 @Indexed
+@EqualsAndHashCode
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Table(indexes = {@Index(columnList = "fileName"), @Index(columnList = "path,filename")})
-public class Movie {
+public class Movie implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Exclude
     private Long id;
+
     @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
     @JsonIdentityReference(alwaysAsId = true)
     @OneToOne(mappedBy = "movie", cascade = CascadeType.ALL, orphanRemoval = true)
     private Subtitles subtitles;
+
     @Field
     @Column(nullable = false, unique = true)
     private String fileName;
+
     @Field
     @Column(nullable = false)
     private String path;
+
     private String extension;
 
     @JsonIgnore

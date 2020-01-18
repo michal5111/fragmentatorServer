@@ -313,6 +313,7 @@ public class ConverterService {
                 }
                 return Mono.just(returnValue);
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 return Mono.error(e);
             }
         });

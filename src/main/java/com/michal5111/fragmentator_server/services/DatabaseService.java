@@ -102,15 +102,17 @@ public class DatabaseService {
     public Flux<Movie> updateDatabase() throws IOException {
         return Flux.fromStream(findMovies())
                 .filterWhen(this::movieExists)
-                //.doOnNext(movie -> logger.info("Adding movie: {}/{}", movie.getPath(), movie.getFileName()))
+                .doOnNext(movie -> logger.debug("Found movie          {}/{}", movie.getPath(), movie.getFileName()))
                 .flatMap(this::parseSubtitles)
+                .doOnNext(movie -> logger.debug("Parsed subtitles for {}/{}", movie.getPath(), movie.getFileName()))
                 .flatMap(Utils::getMovieExtension)
                 .map(movieRepository::save)
+                .doOnNext(movie -> logger.debug("Adding movie:        {}/{}", movie.getPath(), movie.getFileName()))
                 .onErrorContinue(this::updateDatabaseExceptionHandler);
     }
 
     public List<Line> updateDatabase(Long id) throws UnknownSubtitlesTypeException, ParseException {
-        List<Line> lineList = lineRepository.findAllBySubtitles_Movie_Id(id);
+        List<Line> lineList = lineRepository.findAllBySubtitlesMovieId(id);
         lineRepository.deleteAll(lineList);
         Optional<Movie> optionalMovie = movieRepository.findById(id);
         List<Line> lines = new LinkedList<>();

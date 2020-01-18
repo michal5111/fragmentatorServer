@@ -2,12 +2,17 @@ package com.michal5111.fragmentator_server.controllers;
 
 import com.michal5111.fragmentator_server.domain.FragmentRequest;
 import com.michal5111.fragmentator_server.domain.Line;
+import com.michal5111.fragmentator_server.domain.LineEdit;
 import com.michal5111.fragmentator_server.domain.Movie;
+import com.michal5111.fragmentator_server.dto.FragmentRequestDTO;
+import com.michal5111.fragmentator_server.dto.LineEditDTO;
 import com.michal5111.fragmentator_server.exceptions.LineNotFoundException;
+import com.michal5111.fragmentator_server.exceptions.MovieNotFoundException;
 import com.michal5111.fragmentator_server.exceptions.UnknownSubtitlesTypeException;
 import com.michal5111.fragmentator_server.repositories.LineRepository;
 import com.michal5111.fragmentator_server.repositories.MovieRepository;
 import com.michal5111.fragmentator_server.services.*;
+import org.modelmapper.ModelMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -24,7 +29,9 @@ import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 
 @org.springframework.web.bind.annotation.RestController
 @RequestMapping("api")
@@ -43,6 +50,8 @@ public class RestController {
     private final SearchService searchService;
 
     private final YouTubeDlService youTubeDlService;
+
+    private final ModelMapper modelMapper = new ModelMapper();
 
     private final Logger logger = LoggerFactory.getLogger(RestController.class);
 
@@ -64,7 +73,9 @@ public class RestController {
 
     @PostMapping("/fragmentRequest")
     @ResponseStatus(HttpStatus.CREATED)
-    public FragmentRequest createFragmentRequest(@RequestBody FragmentRequest fragmentRequest) {
+    public FragmentRequest createFragmentRequest(@RequestBody FragmentRequestDTO fragmentRequestDTO)
+            throws MovieNotFoundException, LineNotFoundException {
+        FragmentRequest fragmentRequest = convertToEntity(fragmentRequestDTO);
         return fragmentRequestService.create(fragmentRequest);
     }
 
@@ -85,6 +96,11 @@ public class RestController {
         return databaseService.updateDatabase(id);
     }
 
+    @DeleteMapping("/updateDatabase")
+    public List<Movie> cleanDatabase() {
+        return databaseService.cleanDatabase();
+    }
+
     @GetMapping("/lineHints")
     public List<Line> getLinesSQL(@RequestParam("phrase") String phrase) {
         return lineRepository.findText2(phrase);
@@ -100,25 +116,14 @@ public class RestController {
         return movieRepository.findMovieByFileNameContainingIgnoreCase(title);
     }
 
-    @GetMapping("/getLines")
+    @GetMapping("/lines")
     public List<Line> getLines(@RequestParam("movieId") Long movieId) {
-        return lineRepository.findAllBySubtitles_Movie_Id(movieId);
+        return lineRepository.findAllBySubtitlesMovieId(movieId);
     }
 
-    @GetMapping("/getFilteredLines")
-    public List<Line> getFilteredLines(@RequestParam("subtitlesId") Long movieId,
-                                       @RequestParam("phrase") String phrase) {
-        return lineRepository.findFilteredLines(movieId, phrase);
-    }
-
-    @GetMapping(value = "/updateIndex", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PutMapping(value = "/index", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<Void> updateIndex() {
         return databaseService.updateIndex();
-    }
-
-    @GetMapping("/cleanDatabase")
-    public List<Movie> cleanDatabase() {
-        return databaseService.cleanDatabase();
     }
 
 
@@ -156,7 +161,6 @@ public class RestController {
     @PutMapping(value = "/youtube", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
     public Flux<String> getYoutubeInfo(@RequestParam String url) {
         return youTubeDlService.getInfo(url)
-                .doOnNext(logger::debug)
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
@@ -164,5 +168,45 @@ public class RestController {
     public Flux<YouTubeDlService.DownloadStatus> getYoutubeVideo(@RequestParam String url) {
         return youTubeDlService.download(url)
                 .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    public FragmentRequest convertToEntity(FragmentRequestDTO fragmentRequestDTO) throws LineNotFoundException, MovieNotFoundException {
+        Optional<Movie> optionalMovie = movieRepository.findById(fragmentRequestDTO.getMovieId());
+        Optional<Line> optionalStartLine = lineRepository.findById(fragmentRequestDTO.getStartLineId());
+        Optional<Line> optionalStopLine = lineRepository.findById(fragmentRequestDTO.getStopLineId());
+        Movie movie;
+        Line startLine;
+        Line stopLine;
+        if (optionalMovie.isEmpty()) {
+            throw new MovieNotFoundException("Movie not found!");
+        }
+        if (optionalStartLine.isEmpty() || optionalStopLine.isEmpty()) {
+            throw new LineNotFoundException("Line not found!");
+        }
+        movie = optionalMovie.get();
+        startLine = optionalStartLine.get();
+        stopLine = optionalStopLine.get();
+        List<LineEdit> lineEdits = new LinkedList<>();
+        for (LineEditDTO lineEditDTO : fragmentRequestDTO.getLineEdits()) {
+            LineEdit lineEdit = convertToEntity(lineEditDTO);
+            lineEdits.add(lineEdit);
+        }
+        FragmentRequest fragmentRequest = modelMapper.map(fragmentRequestDTO, FragmentRequest.class);
+        fragmentRequest.setLineEdits(lineEdits);
+        fragmentRequest.setMovie(movie);
+        fragmentRequest.setStartLine(startLine);
+        fragmentRequest.setStopLine(stopLine);
+        return fragmentRequest;
+    }
+
+    public LineEdit convertToEntity(LineEditDTO lineEditDTO) throws LineNotFoundException {
+        Optional<Line> optionalLine = lineRepository.findById(lineEditDTO.getLineId());
+        if (optionalLine.isEmpty()) {
+            throw new LineNotFoundException("Line not found!");
+        }
+        Line line = optionalLine.get();
+        LineEdit lineEdit = modelMapper.map(lineEditDTO, LineEdit.class);
+        lineEdit.setLine(line);
+        return lineEdit;
     }
 }
