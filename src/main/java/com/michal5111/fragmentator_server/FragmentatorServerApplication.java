@@ -1,5 +1,6 @@
 package com.michal5111.fragmentator_server;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -14,12 +15,20 @@ public class FragmentatorServerApplication implements WebMvcConfigurer {
         SpringApplication.run(FragmentatorServerApplication.class, args);
     }
 
+    @Value("${fragmentator.videoCache}")
+    private String snapshotsLocation;
+
+    @Value("${fragmentator.imageCache}")
+    private String fragmentsLocation;
+
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/snapshots/**").addResourceLocations("file:////var/cache/fragmenter/SpringFragmenterCache/")
-                .setCachePeriod(0);
-        registry.addResourceHandler("/fragments/**").addResourceLocations("file:////var/cache/fragmenter/SpringFragmenterCache/")
-                .setCachePeriod(0);
+        registry.addResourceHandler("/snapshots/**")
+                .addResourceLocations("file:" + snapshotsLocation)
+                .setCachePeriod(3600);
+        registry.addResourceHandler("/fragments/**")
+                .addResourceLocations("file:" + fragmentsLocation)
+                .setCachePeriod(3600);
     }
 
     @Bean

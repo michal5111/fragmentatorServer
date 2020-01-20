@@ -59,7 +59,7 @@ public class FragmentRequest implements Serializable {
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
-    @OneToMany(mappedBy = "fragmentRequest", orphanRemoval = true)
+    @OneToMany(mappedBy = "fragmentRequest", orphanRemoval = true, cascade = CascadeType.ALL)
     private List<LineEdit> lineEdits;
 
     @EqualsAndHashCode.Exclude

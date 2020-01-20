@@ -15,8 +15,7 @@ import com.michal5111.fragmentator_server.utils.Properties;
 import com.michal5111.fragmentator_server.utils.Utils;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -31,13 +30,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
 
+@Slf4j
 @Service
 public class ConverterService {
 
     private final FragmentRequestRepository fragmentRequestRepository;
     private final Properties properties;
     private final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
-    private final Logger logger = LoggerFactory.getLogger(ConverterService.class);
 
     public ConverterService(FragmentRequestRepository fragmentRequestRepository, Properties properties) {
         this.fragmentRequestRepository = fragmentRequestRepository;
@@ -50,7 +49,7 @@ public class ConverterService {
         try {
             fragmentRequest.getTempFiles().clear();
         } catch (IOException e) {
-            logger.warn("Error in deleting temp files! {}", e.getMessage());
+            log.warn("Error in deleting temp files! {}", e.getMessage());
         }
     }
 
@@ -58,14 +57,14 @@ public class ConverterService {
         fragmentRequest.getTempFiles().add(
                 new File(properties.getVideoCache(), fragmentRequest.getResultFileName())
         );
-        logger.error(e.getMessage());
+        log.error(e.getMessage());
         fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
         fragmentRequest.setErrorMessage(e.getMessage());
         fragmentRequestRepository.save(fragmentRequest);
         try {
             fragmentRequest.getTempFiles().clear();
         } catch (IOException ex) {
-            logger.warn("Error in deleting temp files! {}", ex.getMessage());
+            log.warn("Error in deleting temp files! {}", ex.getMessage());
         }
     }
 
@@ -85,16 +84,16 @@ public class ConverterService {
         Path outputFilePath = Path.of(properties.getVideoCache(), fragmentRequest.getResultFileName());
 
         if (outputFilePath.toFile().exists()) {
-            logger.debug("File exists");
+            log.debug("File exists");
             return Flux.just(new ConversionStatus(timeLength, fragmentRequest.getResultFileName(), EventType.COMPLETE));
         } else {
-            logger.debug("File does not exists {}", outputFilePath);
+            log.debug("File does not exists {}", outputFilePath);
         }
         Path inputFilePath = Paths.get(movie.getPath(), movie.getFileName() + "." + movie.getExtension());
-        logger.debug("Input file: {}", inputFilePath);
-        logger.debug("Movie extension: {}", movie.getExtension());
-        logger.debug("Time lenght: {}", timeLength);
-        logger.debug("Start Time: {}", startTimeString);
+        log.debug("Input file: {}", inputFilePath);
+        log.debug("Movie extension: {}", movie.getExtension());
+        log.debug("Time length: {}", timeLength);
+        log.debug("Start Time: {}", startTimeString);
 
         FFMPEGProperties ffmpegProperties = FFMPEGProperties.builder()
                 .conversionType(FFMPEGConversionType.VIDEO)
@@ -107,7 +106,7 @@ public class ConverterService {
                 .subtitlesPath(tempSubtitlesFile.toPath())
                 .build();
 
-        logger.debug("Properties: {}", ffmpegProperties);
+        log.debug("Properties: {}", ffmpegProperties);
 
         FFMPEGWrapper ffmpegWrapper = new FFMPEGWrapper(ffmpegProperties);
 
@@ -124,7 +123,7 @@ public class ConverterService {
                 new ConversionStatus(timeLength, null, EventType.TO)
         );
         Flux<ConversionStatus> percentFlux = ffmpegWrapper.getInputFlux()
-                .doOnNext(logger::debug)
+                .doOnNext(log::debug)
                 .map(s -> new ConversionStatus(null, s, EventType.LOG));
         Mono<ConversionStatus> completeMono = Mono.just(
                 new ConversionStatus(null, fragmentRequest.getResultFileName(), EventType.COMPLETE)
@@ -149,7 +148,7 @@ public class ConverterService {
     }
 
     private Mono<File> createTempSubtitles(FragmentRequest fragmentRequest, String startTimeString) {
-        logger.debug("Converting subtitles...");
+        log.debug("Converting subtitles...");
         Movie movie = fragmentRequest.getMovie();
         Subtitles subtitles = movie.getSubtitles();
         File outputFile;
@@ -192,12 +191,12 @@ public class ConverterService {
         }
 
         return ffmpegWrapper.getInputFlux()
-                .doOnNext(logger::debug)
+                .doOnNext(log::debug)
                 .then(waitForProcess(ffmpegWrapper.getProcess()))
-                .doOnNext(returnValue -> logger.debug("Done converting subtitles. Exit status: {}", returnValue))
+                .doOnNext(returnValue -> log.debug("Done converting subtitles. Exit status: {}", returnValue))
                 .map(returnValue -> outputFile)
                 .doOnError(e -> {
-                    logger.error(e.getMessage());
+                    log.error(e.getMessage());
                     fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
                     fragmentRequest.setErrorMessage("Error in conversion of subtitles! " + e.getMessage());
                     fragmentRequestRepository.save(fragmentRequest);
@@ -291,16 +290,16 @@ public class ConverterService {
         }
 
         return ffmpegWrapper.getInputFlux()
-                .doOnNext(logger::debug)
+                .doOnNext(log::debug)
                 .doOnComplete(() -> {
                     try {
                         Files.deleteIfExists(tempSubtitles.toPath());
                     } catch (IOException e) {
-                        logger.warn("Error in deleting file {}", tempSubtitles.getName());
+                        log.warn("Error in deleting file {}", tempSubtitles.getName());
                     }
                 })
                 .then(waitForProcess(ffmpegWrapper.getProcess()))
-                .doOnNext(returnValue -> logger.debug("Done converting snapshot. Exit status: {}", returnValue))
+                .doOnNext(returnValue -> log.debug("Done converting snapshot. Exit status: {}", returnValue))
                 .map(returnValue -> outputFilePath.toFile());
     }
 

@@ -4,7 +4,7 @@ import com.michal5111.fragmentator_server.exceptions.UnknownSubtitlesTypeExcepti
 
 public class SubtitlesParserFactory {
 
-    private String subtitlesFileName;
+    private final String subtitlesFileName;
 
     public SubtitlesParserFactory(String subtitlesFileName) {
         this.subtitlesFileName = subtitlesFileName;

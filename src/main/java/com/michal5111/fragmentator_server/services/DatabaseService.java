@@ -11,10 +11,9 @@ import com.michal5111.fragmentator_server.repositories.MovieRepository;
 import com.michal5111.fragmentator_server.repositories.SubtitlesRepository;
 import com.michal5111.fragmentator_server.utils.Properties;
 import com.michal5111.fragmentator_server.utils.Utils;
+import lombok.extern.slf4j.Slf4j;
 import org.hibernate.search.jpa.FullTextEntityManager;
 import org.hibernate.search.jpa.Search;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -37,6 +36,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+@Slf4j
 @Service
 public class DatabaseService {
 
@@ -45,8 +45,6 @@ public class DatabaseService {
     private final LineRepository lineRepository;
 
     private final SubtitlesRepository subtitlesRepository;
-
-    private final Logger logger = LoggerFactory.getLogger(DatabaseService.class);
 
     private final Properties properties;
 
@@ -102,12 +100,12 @@ public class DatabaseService {
     public Flux<Movie> updateDatabase() throws IOException {
         return Flux.fromStream(findMovies())
                 .filterWhen(this::movieExists)
-                .doOnNext(movie -> logger.debug("Found movie          {}/{}", movie.getPath(), movie.getFileName()))
+                .doOnNext(movie -> log.debug("Found movie          {}/{}", movie.getPath(), movie.getFileName()))
                 .flatMap(this::parseSubtitles)
-                .doOnNext(movie -> logger.debug("Parsed subtitles for {}/{}", movie.getPath(), movie.getFileName()))
+                .doOnNext(movie -> log.debug("Parsed subtitles for {}/{}", movie.getPath(), movie.getFileName()))
                 .flatMap(Utils::getMovieExtension)
                 .map(movieRepository::save)
-                .doOnNext(movie -> logger.debug("Adding movie:        {}/{}", movie.getPath(), movie.getFileName()))
+                .doOnNext(movie -> log.debug("Adding movie:        {}/{}", movie.getPath(), movie.getFileName()))
                 .onErrorContinue(this::updateDatabaseExceptionHandler);
     }
 
@@ -153,12 +151,12 @@ public class DatabaseService {
         List<Movie> movies = movieRepository.findAll();
         movies.forEach(movie -> {
             if (movie == null) {
-                logger.debug("Movie is null");
+                log.debug("Movie is null");
                 return;
             }
-            logger.debug(movie.getPath());
-            logger.debug(movie.getFileName());
-            logger.debug(movie.getExtension());
+            log.debug(movie.getPath());
+            log.debug(movie.getFileName());
+            log.debug(movie.getExtension());
             File movieFile = new File(movie.getPath(), movie.getFileName() + movie.getExtension());
             File srtFile = movie.getSubtitles().getSubtitleFile();
             if (!movieFile.exists() || !srtFile.exists()) {
@@ -170,6 +168,6 @@ public class DatabaseService {
     }
 
     private void updateDatabaseExceptionHandler(Throwable throwable, Object object) {
-        logger.error("Error in adding movie {} {}", throwable.getClass().getSimpleName(), throwable.getMessage());
+        log.error("Error in adding movie {} {}", throwable.getClass().getSimpleName(), throwable.getMessage());
     }
 }

@@ -19,7 +19,7 @@ import java.nio.file.Paths;
 public class YouTubeDlService {
 
     private final Properties properties;
-    private Path outputPath = Paths.get("/var/cache/fragmenter/SpringFragmenterCache/youtube");
+    private final Path outputPath = Paths.get("/var/cache/fragmenter/SpringFragmenterCache/youtube");
 
     public YouTubeDlService(Properties properties) {
         this.properties = properties;

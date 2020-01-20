@@ -12,9 +12,8 @@ import com.michal5111.fragmentator_server.exceptions.UnknownSubtitlesTypeExcepti
 import com.michal5111.fragmentator_server.repositories.LineRepository;
 import com.michal5111.fragmentator_server.repositories.MovieRepository;
 import com.michal5111.fragmentator_server.services.*;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -33,6 +32,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @org.springframework.web.bind.annotation.RestController
 @RequestMapping("api")
 public class RestController {
@@ -52,8 +52,6 @@ public class RestController {
     private final YouTubeDlService youTubeDlService;
 
     private final ModelMapper modelMapper = new ModelMapper();
-
-    private final Logger logger = LoggerFactory.getLogger(RestController.class);
 
     public RestController(MovieRepository movieRepository,
                           LineRepository lineRepository,
@@ -152,7 +150,7 @@ public class RestController {
             if (c != '\n') {
                 stringBuilder.append(c);
             } else {
-                logger.debug("Progress: {}", stringBuilder);
+                log.debug("Progress: {}", stringBuilder);
                 stringBuilder = new StringBuilder();
             }
         }
@@ -174,24 +172,22 @@ public class RestController {
         Optional<Movie> optionalMovie = movieRepository.findById(fragmentRequestDTO.getMovieId());
         Optional<Line> optionalStartLine = lineRepository.findById(fragmentRequestDTO.getStartLineId());
         Optional<Line> optionalStopLine = lineRepository.findById(fragmentRequestDTO.getStopLineId());
-        Movie movie;
-        Line startLine;
-        Line stopLine;
         if (optionalMovie.isEmpty()) {
             throw new MovieNotFoundException("Movie not found!");
         }
         if (optionalStartLine.isEmpty() || optionalStopLine.isEmpty()) {
             throw new LineNotFoundException("Line not found!");
         }
-        movie = optionalMovie.get();
-        startLine = optionalStartLine.get();
-        stopLine = optionalStopLine.get();
+        Movie movie = optionalMovie.get();
+        Line startLine = optionalStartLine.get();
+        Line stopLine = optionalStopLine.get();
         List<LineEdit> lineEdits = new LinkedList<>();
+        FragmentRequest fragmentRequest = modelMapper.map(fragmentRequestDTO, FragmentRequest.class);
         for (LineEditDTO lineEditDTO : fragmentRequestDTO.getLineEdits()) {
             LineEdit lineEdit = convertToEntity(lineEditDTO);
+            lineEdit.setFragmentRequest(fragmentRequest);
             lineEdits.add(lineEdit);
         }
-        FragmentRequest fragmentRequest = modelMapper.map(fragmentRequestDTO, FragmentRequest.class);
         fragmentRequest.setLineEdits(lineEdits);
         fragmentRequest.setMovie(movie);
         fragmentRequest.setStartLine(startLine);

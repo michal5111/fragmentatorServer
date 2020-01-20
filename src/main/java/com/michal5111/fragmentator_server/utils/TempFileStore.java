@@ -7,7 +7,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class TempFileStore {
-    private List<File> files = new LinkedList<>();
+    private final List<File> files = new LinkedList<>();
 
     public File add(File file) {
         files.add(file);
