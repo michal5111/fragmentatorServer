@@ -30,8 +30,4 @@ public class LineEdit implements Serializable {
     private Line line;
 
     private String text;
-
-    @Transient
-    @JsonIgnore
-    private String originalText;
 }

@@ -18,9 +18,10 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
     @Query(value = "select m from Movie m inner join m.subtitles s where s in (select l.subtitles from Line l where lower(text_lines) like lower(concat('%',:phrase,'%')))")
     List<Movie> findMoviesByPhrase2(@Param("phrase") String phrase);
 
+    @Query(value = "select m from Movie m where lower(m.fileName) like lower(concat('%',:title,'%')) or lower(m.parsedTitle) like lower(concat('%',:title,'%'))")
     List<Movie> findMovieByFileNameContainingIgnoreCase(String title);
 
-    @Query(value = "select * from movie where lower(file_name) like lower(concat('%',:title,'%')) limit 20", nativeQuery = true)
+    @Query(value = "select * from movie where lower(file_name) like lower(concat('%',:title,'%')) or lower(parsed_title) like lower(concat('%',:title,'%')) limit 20", nativeQuery = true)
     List<Movie> findTitleHints(@Param("title") String title);
 
     Optional<Movie> findByPathAndFileNameEquals(String path, String filename);

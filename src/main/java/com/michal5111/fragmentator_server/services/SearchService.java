@@ -41,12 +41,12 @@ public class SearchService {
             Query query = textQuery;
 
             if (filter != null && !"".equals(filter)) {
+                filter = "*" + filter.toLowerCase().replace(" ", "?") + "*";
                 Query titleQuery = queryBuilder
                         .keyword()
-                        .fuzzy()
-                        .withEditDistanceUpTo(2)
+                        .wildcard()
                         .onField("subtitles.movie.fileName")
-                        .matching(filter.toLowerCase())
+                        .matching(filter)
                         .createQuery();
 
                 query = queryBuilder.bool()

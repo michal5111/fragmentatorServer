@@ -20,6 +20,8 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -37,6 +39,9 @@ public class ConverterService {
     private final FragmentRequestRepository fragmentRequestRepository;
     private final Properties properties;
     private final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
+
+    @PersistenceContext
+    private final EntityManager entityManager = null;
 
     public ConverterService(FragmentRequestRepository fragmentRequestRepository, Properties properties) {
         this.fragmentRequestRepository = fragmentRequestRepository;
@@ -79,16 +84,13 @@ public class ConverterService {
         fragmentRequest.setResultFileName(nameGenerator(fragmentRequest));
         String startTimeString = getStartTimeString(fragmentRequest);
         Double timeLength = getTimeLength(fragmentRequest);
+        Path outputFilePath = Path.of(properties.getVideoCache(), fragmentRequest.getResultFileName());
+        if (outputFilePath.toFile().exists()) {
+            return Flux.just(new ConversionStatus(timeLength, fragmentRequest.getResultFileName(), EventType.COMPLETE));
+        }
         File tempSubtitlesFile = createTempSubtitles(fragmentRequest, startTimeString).block();
         fragmentRequest.getTempFiles().add(tempSubtitlesFile);
-        Path outputFilePath = Path.of(properties.getVideoCache(), fragmentRequest.getResultFileName());
 
-        if (outputFilePath.toFile().exists()) {
-            log.debug("File exists");
-            return Flux.just(new ConversionStatus(timeLength, fragmentRequest.getResultFileName(), EventType.COMPLETE));
-        } else {
-            log.debug("File does not exists {}", outputFilePath);
-        }
         Path inputFilePath = Paths.get(movie.getPath(), movie.getFileName() + "." + movie.getExtension());
         log.debug("Input file: {}", inputFilePath);
         log.debug("Movie extension: {}", movie.getExtension());
@@ -135,16 +137,10 @@ public class ConverterService {
         fragmentRequest
                 .getLineEdits()
                 .forEach(lineEdit -> {
-                    lineEdit.setOriginalText(lineEdit.getLine().getTextLines());
-                    lineEdit.getLine().setTextLines(lineEdit.getText());
+                    Line line = lineEdit.getLine();
+                    entityManager.detach(line);
+                    line.setTextLines(lineEdit.getText());
                 });
-    }
-
-    private void restoreOriginalLines(FragmentRequest fragmentRequest) {
-        fragmentRequest
-                .getLineEdits()
-                .forEach(lineEdit -> lineEdit.getLine().setTextLines(lineEdit.getOriginalText()));
-
     }
 
     private Mono<File> createTempSubtitles(FragmentRequest fragmentRequest, String startTimeString) {
@@ -169,9 +165,9 @@ public class ConverterService {
             } catch (IOException e) {
                 return Mono.error(e);
             }
+
             replaceLinesWithEdits(fragmentRequest);
             subtitles.saveToFile(preTempSubtitlesFile);
-            restoreOriginalLines(fragmentRequest);
             inputFile = preTempSubtitlesFile;
         }
 
@@ -196,7 +192,7 @@ public class ConverterService {
                 .doOnNext(returnValue -> log.debug("Done converting subtitles. Exit status: {}", returnValue))
                 .map(returnValue -> outputFile)
                 .doOnError(e -> {
-                    log.error(e.getMessage());
+                    log.error(e.getMessage(), e);
                     fragmentRequest.setStatus(FragmentRequestStatus.ERROR);
                     fragmentRequest.setErrorMessage("Error in conversion of subtitles! " + e.getMessage());
                     fragmentRequestRepository.save(fragmentRequest);

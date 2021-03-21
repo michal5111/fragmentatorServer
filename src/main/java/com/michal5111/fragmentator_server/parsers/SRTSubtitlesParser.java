@@ -2,9 +2,11 @@ package com.michal5111.fragmentator_server.parsers;
 
 import com.michal5111.fragmentator_server.domain.Line;
 import com.michal5111.fragmentator_server.domain.Subtitles;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.text.ParseException;
 import java.util.Arrays;
@@ -12,13 +14,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Scanner;
 
+@Slf4j
 public class SRTSubtitlesParser implements SubtitlesParser {
 
     public List<Line> parse(Subtitles subtitles) throws ParseException {
         File subtitleFile = subtitles.getSubtitleFile();
         List<Line> lines = new LinkedList<>();
         int lineNumber = 0;
-        try (Scanner scanner = new Scanner(subtitleFile).useDelimiter("(\n\n|\r\n\r\n)")) {
+        try (Scanner scanner = new Scanner(new FileInputStream(subtitleFile)).useDelimiter("(\n\n|\r\n\r\n)")) {
             while (scanner.hasNext()) {
                 lineNumber++;
                 String scannedString = scanner.next();

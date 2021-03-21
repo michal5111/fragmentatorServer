@@ -34,6 +34,8 @@ public class FFMPEGWrapper {
     private static final String OVERRIDE = "-y";
     private static final String PRESET = "-preset";
     private static final String FILTER = "-vf";
+    private static final String NO_STDIN = "-nostdin";
+    private static final String METADATA = "-metadata";
 
     private ProcessBuilder prepareVideoProcess() {
         ProcessBuilder pb = new ProcessBuilder();
@@ -46,9 +48,9 @@ public class FFMPEGWrapper {
                 TIME_LENGTH, String.format(Locale.US, "%.3f", properties.getTimeLength()),
                 AUDIO_CODEC, properties.getAudioCodec(),
                 VIDEO_CODEC, properties.getVideoCodec(),
-                PRESET, "veryslow",
                 FILTER, "subtitles=" + properties.getSubtitlesPath().toString(),
                 HIDE_BANNER,
+                NO_STDIN,
                 properties.getOutputFilePath().toString()
         );
         return pb;
@@ -62,6 +64,7 @@ public class FFMPEGWrapper {
                 OVERRIDE,
                 INPUT, properties.getInputFilePath().toString(),
                 START_TIME, properties.getStartTime(),
+                NO_STDIN,
                 properties.getOutputFilePath().toString()
         );
         return pb;
@@ -77,6 +80,7 @@ public class FFMPEGWrapper {
                 INPUT, properties.getInputFilePath().toString(),
                 FILTER, "subtitles=" + properties.getSubtitlesPath(),
                 "-frames:v", "1",
+                NO_STDIN,
                 properties.getOutputFilePath().toString()
         );
         return pb;
@@ -101,17 +105,10 @@ public class FFMPEGWrapper {
     public void prepare() throws InvalidFFMPEGPropertiesException {
         checkProperties();
         switch (properties.getConversionType()) {
-            case VIDEO:
-                processBuilder = prepareVideoProcess();
-                break;
-            case IMAGE:
-                processBuilder = prepareImageProcess();
-                break;
-            case SUBTITLES:
-                processBuilder = prepareSubtitlesProcess();
-                break;
-            default:
-                throw new InvalidFFMPEGPropertiesException("Unknown conversion type");
+            case VIDEO -> processBuilder = prepareVideoProcess();
+            case IMAGE -> processBuilder = prepareImageProcess();
+            case SUBTITLES -> processBuilder = prepareSubtitlesProcess();
+            default -> throw new InvalidFFMPEGPropertiesException("Unknown conversion type");
         }
     }
 

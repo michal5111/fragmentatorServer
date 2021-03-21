@@ -120,8 +120,8 @@ public class RestController {
     }
 
     @PutMapping(value = "/index", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<Void> updateIndex() {
-        return databaseService.updateIndex();
+    public Flux<Float> updateIndex2() {
+        return databaseService.updateIndex2();
     }
 
 

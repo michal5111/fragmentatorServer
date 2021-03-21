@@ -4,13 +4,7 @@ import com.michal5111.fragmentator_server.exceptions.UnknownSubtitlesTypeExcepti
 
 public class SubtitlesParserFactory {
 
-    private final String subtitlesFileName;
-
-    public SubtitlesParserFactory(String subtitlesFileName) {
-        this.subtitlesFileName = subtitlesFileName;
-    }
-
-    public SubtitlesParser create() throws UnknownSubtitlesTypeException {
+    public SubtitlesParser create(String subtitlesFileName) throws UnknownSubtitlesTypeException {
         if (subtitlesFileName.endsWith(".srt")) {
             return new SRTSubtitlesParser();
         }

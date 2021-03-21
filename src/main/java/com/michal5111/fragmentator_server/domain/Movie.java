@@ -6,6 +6,7 @@ import org.hibernate.search.annotations.Field;
 import org.hibernate.search.annotations.Indexed;
 
 import javax.persistence.*;
+import java.io.File;
 import java.io.Serializable;
 import java.util.List;
 
@@ -34,6 +35,13 @@ public class Movie implements Serializable {
     private String fileName;
 
     @Field
+    private String parsedTitle;
+
+    private Integer year;
+
+    private String resolution;
+
+    @Field
     @Column(nullable = false)
     private String path;
 
@@ -44,4 +52,16 @@ public class Movie implements Serializable {
     @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "movie")
     private List<FragmentRequest> fragmentRequests;
+
+    @JsonIgnore
+    @Transient
+    @EqualsAndHashCode.Exclude
+    private File movieFile;
+
+    public File getMovieFile() {
+        if (movieFile == null) {
+            movieFile = new File(path, fileName + "." + extension);
+        }
+        return movieFile;
+    }
 }

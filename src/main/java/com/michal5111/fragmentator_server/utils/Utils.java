@@ -3,6 +3,8 @@ package com.michal5111.fragmentator_server.utils;
 import com.michal5111.fragmentator_server.domain.Line;
 import com.michal5111.fragmentator_server.domain.Movie;
 import com.michal5111.fragmentator_server.domain.Subtitles;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.tika.Tika;
 import reactor.core.publisher.Flux;
 
 import java.io.BufferedWriter;
@@ -13,9 +15,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalTime;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+@Slf4j
 public class Utils {
+
+    private static final Pattern movieTitlePattern = Pattern.compile("^(.*?)\\W(?:(\\d{4})(?:\\W(\\d+p)?)|(\\d+p)(?:\\W(\\d{4}))?)\\b");
 
     private Utils() {
     }
@@ -28,9 +35,34 @@ public class Utils {
         Subtitles subtitles = new Subtitles();
         subtitles.setSubtitleFile(file);
         subtitles.setFilename(file.getName());
+        Matcher m = movieTitlePattern.matcher(file.getName());
+        String title = null;
+        Integer year = null;
+        String resolution = null;
+        if (m.find()) {
+            title = m.group(1).replace(".", " ");
+            if (m.group(2) != null) {
+                try {
+                    year = Integer.parseInt(m.group(2));
+                } catch (Exception ignored) {
+                }
+                resolution = m.group(3);
+            } else {
+                resolution = m.group(4);
+                if (m.group(5) != null) {
+                    try {
+                        year = Integer.parseInt(m.group(5));
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
         Movie movie = Movie.builder()
                 .subtitles(subtitles)
                 .fileName(file.getName().substring(0, file.getName().lastIndexOf('.')))
+                .parsedTitle(title)
+                .year(year)
+                .resolution(resolution)
                 .path(file.getParent())
                 .build();
         subtitles.setMovie(movie);
@@ -40,6 +72,7 @@ public class Utils {
     public static Flux<Movie> getMovieExtension(Movie movie) {
         Path path = Paths.get(movie.getPath()).toAbsolutePath();
         String subtitlesFilename = movie.getSubtitles().getFilename();
+        Tika tika = new Tika();
         Stream<Movie> stream;
         try {
             stream = Files.walk(path)
@@ -47,16 +80,8 @@ public class Utils {
                     .map(Path::getFileName)
                     .filter(x -> x.toString().contains(subtitlesFilename.substring(0, subtitlesFilename.lastIndexOf('.'))))
                     .filter(fileName -> {
-                        try {
-                            if (Files.probeContentType(fileName) == null) {
-                                return false;
-                            }
-                            return Files.probeContentType(fileName).contains("video") ||
-                                    fileName.endsWith("divx") ||
-                                    fileName.endsWith("rmvb");
-                        } catch (IOException e) {
-                            return false;
-                        }
+                        log.debug("Content type: {}", tika.detect(movie.getPath() + fileName));
+                        return tika.detect(movie.getPath() + fileName).contains("video");
                     })
                     .map(Path::toString)
                     .filter(path1 -> path1.contains("."))
@@ -89,7 +114,8 @@ public class Utils {
         return temp;
     }
 
-    public static double calculateDuration(LocalTime timeFrom, LocalTime timeTo, double startOffset, double stopOffset) {
+    public static double calculateDuration(LocalTime timeFrom, LocalTime timeTo, double startOffset,
+                                           double stopOffset) {
         return timeTo.getHour() * 3600 + timeTo.getMinute() * 60
                 + timeTo.getSecond()
                 + timeTo.getNano() / 1000000000.0
