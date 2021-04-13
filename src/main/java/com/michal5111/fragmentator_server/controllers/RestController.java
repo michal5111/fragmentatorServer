@@ -73,6 +73,7 @@ public class RestController {
     @ResponseStatus(HttpStatus.CREATED)
     public FragmentRequest createFragmentRequest(@RequestBody FragmentRequestDTO fragmentRequestDTO)
             throws MovieNotFoundException, LineNotFoundException {
+        log.info("Fragment request: {}", fragmentRequestDTO);
         FragmentRequest fragmentRequest = convertToEntity(fragmentRequestDTO);
         return fragmentRequestService.create(fragmentRequest);
     }
@@ -80,7 +81,7 @@ public class RestController {
     @GetMapping(path = "/fragmentRequest/{id}", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
     public Flux<ConverterService.ConversionStatus> requestFragment(@PathVariable("id") Long id) {
         return fragmentRequestService.get(id)
-                .subscribeOn(Schedulers.boundedElastic());
+                .subscribeOn(Schedulers.elastic());
     }
 
     @GetMapping(value = "updateDatabase", produces = MediaType.APPLICATION_STREAM_JSON_VALUE)
@@ -127,7 +128,9 @@ public class RestController {
 
     @GetMapping("/searchPhrase")
     public Page<Line> searchLineIndexed2(
-            @RequestParam("phrase") String phrase, @RequestParam(name = "title", required = false) String title, Pageable pageable) {
+            @RequestParam("phrase") String phrase,
+            @RequestParam(name = "title", required = false) String title,
+            Pageable pageable) {
         return searchService.search(phrase, title, pageable);
     }
 

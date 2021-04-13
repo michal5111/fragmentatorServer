@@ -25,21 +25,16 @@ import reactor.core.publisher.Mono;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.ParseException;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -66,22 +61,14 @@ public class DatabaseService {
         this.properties = properties;
     }
 
-    public Stream<Movie> findMovies() throws IOException {
-        List<Path> paths = Arrays
-                .stream(properties.getSearchDirectories())
+    public Flux<Movie> findMovies() {
+        return Flux.fromArray(properties.getSearchDirectories())
                 .map(Paths::get)
-                .collect(Collectors.toUnmodifiableList());
-        Stream<Movie>[] streams = new Stream[paths.size()];
-        for (int i = 0; i < paths.size(); i++) {
-            streams[i] = Files.walk(paths.get(i))
-                    .filter(Files::isRegularFile)
-                    .filter(Utils::endsWithSRT)
-                    .map(Path::toFile)
-                    .map(Utils::createMovieFromFile);
-        }
-        return Arrays.stream(streams)
-                .flatMap(Function.identity())
-                .parallel();
+                .flatMap(Utils::fileFlux, properties.getSearchDirectories().length)
+                .filter(Files::isRegularFile)
+                .filter(Utils::endsWithSRT)
+                .map(Path::toFile)
+                .map(Utils::createMovieFromFile);
     }
 
     private Mono<Movie> parseSubtitles(Movie movie) {
@@ -105,8 +92,8 @@ public class DatabaseService {
                 .existsByFileNameEquals(movie.getFileName()));
     }
 
-    public Flux<Movie> updateDatabase() throws IOException {
-        return Flux.fromStream(findMovies())
+    public Flux<Movie> updateDatabase() {
+        return findMovies()
                 .filterWhen(this::movieExists)
                 .doOnNext(movie -> log.debug("Found movie          {}/{}", movie.getPath(), movie.getFileName()))
                 .flatMap(this::parseSubtitles)

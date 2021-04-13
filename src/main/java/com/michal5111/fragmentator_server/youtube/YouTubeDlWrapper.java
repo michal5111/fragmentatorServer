@@ -88,13 +88,12 @@ public class YouTubeDlWrapper {
         final BufferedReader reader = new BufferedReader(
                 new InputStreamReader(process.getInputStream())
         );
-        return Flux.fromStream(reader.lines())
-                .handle((s, sink) -> {
-                    if (s.contains("error:")) {
-                        String error = s.split("error:")[1];
-                        sink.error(new YouTubeDlException(error));
-                    }
-                    sink.next(s);
-                });
+        return Flux.fromStream(reader.lines()).handle((s, sink) -> {
+            if (s.contains("error:")) {
+                String error = s.split("error:")[1];
+                sink.error(new YouTubeDlException(error));
+            }
+            sink.next(s);
+        });
     }
 }

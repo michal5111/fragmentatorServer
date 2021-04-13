@@ -38,8 +38,7 @@ public class FFMPEGWrapper {
     private static final String METADATA = "-metadata";
 
     private ProcessBuilder prepareVideoProcess() {
-        ProcessBuilder pb = new ProcessBuilder();
-        pb.command(
+        return new ProcessBuilder().command(
                 FFMPEG,
                 OVERRIDE,
                 START_TIME, properties.getStartTime(),
@@ -53,12 +52,10 @@ public class FFMPEGWrapper {
                 NO_STDIN,
                 properties.getOutputFilePath().toString()
         );
-        return pb;
     }
 
     private ProcessBuilder prepareSubtitlesProcess() {
-        ProcessBuilder pb = new ProcessBuilder();
-        pb.command(
+        return new ProcessBuilder().command(
                 FFMPEG,
                 HIDE_BANNER,
                 OVERRIDE,
@@ -67,12 +64,10 @@ public class FFMPEGWrapper {
                 NO_STDIN,
                 properties.getOutputFilePath().toString()
         );
-        return pb;
     }
 
     private ProcessBuilder prepareImageProcess() {
-        ProcessBuilder pb = new ProcessBuilder();
-        pb.command(
+        return new ProcessBuilder().command(
                 FFMPEG,
                 HIDE_BANNER,
                 "-n",
@@ -83,7 +78,6 @@ public class FFMPEGWrapper {
                 NO_STDIN,
                 properties.getOutputFilePath().toString()
         );
-        return pb;
     }
 
     private void checkProperties() throws InvalidFFMPEGPropertiesException {
@@ -118,22 +112,19 @@ public class FFMPEGWrapper {
         } catch (IOException e) {
             return Flux.error(e);
         }
-        final BufferedReader reader = new BufferedReader(
-                new InputStreamReader(process.getInputStream())
-        );
-        return Flux.fromStream(reader.lines())
-                .doOnNext(s -> {
-                    try {
-                        if (s.contains("Conversion failed!")) {
-                            throw new FFMPEGException("Conversion failed!");
-                        }
-                        if (s.contains("Invalid data found when processing input")) {
-                            throw new FFMPEGException("Invalid data found when processing input");
-                        }
-                    } catch (FFMPEGException e) {
-                        Flux.error(e);
-                    }
-                });
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+        return Flux.fromStream(reader.lines()).doOnNext(s -> {
+            try {
+                if (s.contains("Conversion failed!")) {
+                    throw new FFMPEGException("Conversion failed!");
+                }
+                if (s.contains("Invalid data found when processing input")) {
+                    throw new FFMPEGException("Invalid data found when processing input");
+                }
+            } catch (FFMPEGException e) {
+                Flux.error(e);
+            }
+        });
     }
 
     private void checkIfPropertiesNotNull() throws InvalidFFMPEGPropertiesException {

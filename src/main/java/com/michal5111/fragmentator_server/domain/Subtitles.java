@@ -7,7 +7,8 @@ import org.hibernate.search.annotations.Field;
 import org.hibernate.search.annotations.IndexedEmbedded;
 
 import javax.persistence.*;
-import java.io.*;
+import java.io.File;
+import java.io.Serializable;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -44,23 +45,6 @@ public class Subtitles implements Serializable {
     @EqualsAndHashCode.Exclude
     @IndexedEmbedded
     private Movie movie;
-
-    public void saveToFile(File file) {
-        lines.forEach(line -> {
-            try (BufferedWriter bw = new BufferedWriter(new FileWriter(file, false))) {
-                bw.write(String.valueOf(line.getNumber()));
-                bw.newLine();
-                bw.write(line.getTimeString());
-                bw.newLine();
-                bw.write(line.getTextLines().replace("<br>", "\n"));
-                bw.newLine();
-                bw.newLine();
-
-            } catch (IOException e) {
-                throw new IllegalStateException("error in saving temp subtitles!", e);
-            }
-        });
-    }
 
     public File getSubtitleFile() {
         if (subtitleFile == null) {

@@ -4,6 +4,7 @@ import com.michal5111.fragmentator_server.domain.FragmentRequest;
 import com.michal5111.fragmentator_server.domain.Line;
 import com.michal5111.fragmentator_server.domain.Movie;
 import com.michal5111.fragmentator_server.domain.Subtitles;
+import com.michal5111.fragmentator_server.dto.LineDto;
 import com.michal5111.fragmentator_server.enums.FFMPEGConversionType;
 import com.michal5111.fragmentator_server.enums.FragmentRequestStatus;
 import com.michal5111.fragmentator_server.exceptions.FFMPEGException;
@@ -13,6 +14,8 @@ import com.michal5111.fragmentator_server.ffmpeg.FFMPEGWrapper;
 import com.michal5111.fragmentator_server.repositories.FragmentRequestRepository;
 import com.michal5111.fragmentator_server.utils.Properties;
 import com.michal5111.fragmentator_server.utils.Utils;
+import com.michal5111.fragmentator_server.writers.SRTSubtitlesWriter;
+import com.michal5111.fragmentator_server.writers.SubtitlesWriter;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +34,8 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -133,13 +138,13 @@ public class ConverterService {
         return Flux.concat(timeLengthMono, percentFlux, completeMono);
     }
 
-    private void replaceLinesWithEdits(FragmentRequest fragmentRequest) {
+    private void replaceLinesWithEdits(FragmentRequest fragmentRequest, Map<Integer, LineDto> lines) {
         fragmentRequest
                 .getLineEdits()
                 .forEach(lineEdit -> {
                     Line line = lineEdit.getLine();
-                    entityManager.detach(line);
-                    line.setTextLines(lineEdit.getText());
+                    lines.get(line.getNumber()).setTextLines(lineEdit.getText());
+                    log.info("zamieniam linię nr. {} na tekst {}", line.getNumber(), lineEdit.getText());
                 });
     }
 
@@ -157,18 +162,18 @@ public class ConverterService {
         }
         File inputFile = movie.getSubtitles().getSubtitleFile();
         if (!fragmentRequest.getLineEdits().isEmpty()) {
-            File preTempSubtitlesFile;
+            Map<Integer, LineDto> lineDtoList = subtitles
+                    .getLines()
+                    .stream()
+                    .map(LineDto::new)
+                    .collect(Collectors.toMap(LineDto::getNumber, lineDto -> lineDto));
+            replaceLinesWithEdits(fragmentRequest, lineDtoList);
+            SubtitlesWriter subtitlesWriter = new SRTSubtitlesWriter();
             try {
-                preTempSubtitlesFile = fragmentRequest.getTempFiles().add(
-                        File.createTempFile("preTemp", ".srt")
-                );
+                inputFile = subtitlesWriter.write(lineDtoList);
             } catch (IOException e) {
                 return Mono.error(e);
             }
-
-            replaceLinesWithEdits(fragmentRequest);
-            subtitles.saveToFile(preTempSubtitlesFile);
-            inputFile = preTempSubtitlesFile;
         }
 
         FFMPEGProperties ffmpegProperties = FFMPEGProperties.builder()
@@ -188,7 +193,14 @@ public class ConverterService {
 
         return ffmpegWrapper.getInputFlux()
                 .doOnNext(log::debug)
-                .then(waitForProcess(ffmpegWrapper.getProcess()))
+                .then(Mono.fromFuture(ffmpegWrapper.getProcess().onExit()))
+                .map(Process::exitValue)
+                .flatMap(returnValue -> {
+                    if (returnValue != 0) {
+                        return Mono.error(new FFMPEGException("Return value = " + returnValue));
+                    }
+                    return Mono.just(returnValue);
+                })
                 .doOnNext(returnValue -> log.debug("Done converting subtitles. Exit status: {}", returnValue))
                 .map(returnValue -> outputFile)
                 .doOnError(e -> {
@@ -235,9 +247,8 @@ public class ConverterService {
                 .getTimeFrom()
                 .minusSeconds(1)
                 .plusNanos(
-                        (
-                                Double.valueOf(fragmentRequest.getStartOffset() * 1000000000.0)
-                        ).longValue());
+                        (Double.valueOf(fragmentRequest.getStartOffset() * 1000000000.0)).longValue()
+                );
         return dateTimeFormatter.format(time);
     }
 
@@ -294,24 +305,16 @@ public class ConverterService {
                         log.warn("Error in deleting file {}", tempSubtitles.getName());
                     }
                 })
-                .then(waitForProcess(ffmpegWrapper.getProcess()))
+                .then(Mono.fromFuture(ffmpegWrapper.getProcess().onExit()))
+                .map(Process::exitValue)
+                .flatMap(returnValue -> {
+                    if (returnValue != 0) {
+                        return Mono.error(new FFMPEGException("Return value = " + returnValue));
+                    }
+                    return Mono.just(returnValue);
+                })
                 .doOnNext(returnValue -> log.debug("Done converting snapshot. Exit status: {}", returnValue))
                 .map(returnValue -> outputFilePath.toFile());
-    }
-
-    private Mono<Integer> waitForProcess(Process process) {
-        return Mono.defer(() -> {
-            try {
-                int returnValue = process.waitFor();
-                if (returnValue != 0) {
-                    return Mono.error(new FFMPEGException("Return value = " + returnValue));
-                }
-                return Mono.just(returnValue);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return Mono.error(e);
-            }
-        });
     }
 
     private static class EventType {

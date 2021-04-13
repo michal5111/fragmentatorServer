@@ -34,10 +34,12 @@ public class Line implements Serializable {
     private String timeString;
 
     @JsonIgnore
+    @EqualsAndHashCode.Exclude
     @Column(columnDefinition = "TIME(3)")
     private LocalTime timeFrom;
 
     @JsonIgnore
+    @EqualsAndHashCode.Exclude
     @Column(columnDefinition = "TIME(3)")
     private LocalTime timeTo;
 
