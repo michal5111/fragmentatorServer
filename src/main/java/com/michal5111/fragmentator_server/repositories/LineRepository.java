@@ -9,19 +9,12 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface LineRepository extends CrudRepository<Line, Long> {
-    List<Line> findAllByTextLinesContainingIgnoreCase(String phrase);
-
-    @Query(value = "select text_lines from line where lower(text_lines) like lower(concat('%',:phrase,'%')) limit 20", nativeQuery = true)
-    List<String> findText(@Param("phrase") String phrase);
+public interface LineRepository extends CrudRepository<Line, Long>, LineRepositoryFullTextSearch {
 
     @Query(value = "select * from line where lower(text_lines) like lower(concat('%',:phrase,'%')) limit 20", nativeQuery = true)
     List<Line> findText2(@Param("phrase") String phrase);
 
-    @Query(value = "select * from line l where l.subtitles_id = :p_subtitles_id and lower(l.text_lines) like lower(concat('%',:p_phrase,'%'));", nativeQuery = true)
-    List<Line> findFilteredLines(@Param("p_subtitles_id") Long movieId, @Param("p_phrase") String phrase);
-
-    List<Line> findAllBySubtitlesMovieId(@Param("p_movie_id") Long movieId);
+    List<Line> findAllBySubtitlesMovieIdOrderByNumber(@Param("p_movie_id") Long movieId);
 
     List<Line> findAllByIdBetween(Long startId, Long stopId);
 }

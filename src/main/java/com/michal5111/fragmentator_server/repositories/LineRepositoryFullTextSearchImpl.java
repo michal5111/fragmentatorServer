@@ -1,4 +1,4 @@
-package com.michal5111.fragmentator_server.services;
+package com.michal5111.fragmentator_server.repositories;
 
 import com.michal5111.fragmentator_server.domain.Line;
 import org.apache.lucene.search.Query;
@@ -10,20 +10,19 @@ import org.hibernate.search.query.dsl.QueryBuilder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import java.util.LinkedList;
 import java.util.List;
 
-@Service
-public class SearchService {
+public class LineRepositoryFullTextSearchImpl implements LineRepositoryFullTextSearch {
 
     @PersistenceContext
     private EntityManager entityManager;
 
-    public Page<Line> search(String phrase, String filter, Pageable pageable) {
+    @Override
+    public Page<Line> fullTextSearchPhrase(String phrase, String filter, Pageable pageable) {
         try {
             FullTextEntityManager fullTextEntityManager = Search.getFullTextEntityManager(entityManager);
             QueryBuilder queryBuilder = fullTextEntityManager.getSearchFactory()

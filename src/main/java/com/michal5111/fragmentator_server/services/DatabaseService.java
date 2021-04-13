@@ -107,7 +107,7 @@ public class DatabaseService {
 
     @Transactional
     public List<Line> updateDatabase(Long id) throws UnknownSubtitlesTypeException, ParseException {
-        List<Line> lineList = lineRepository.findAllBySubtitlesMovieId(id);
+        List<Line> lineList = lineRepository.findAllBySubtitlesMovieIdOrderByNumber(id);
         lineRepository.deleteAll(lineList);
         Optional<Movie> optionalMovie = movieRepository.findById(id);
         List<Line> lines = new LinkedList<>();

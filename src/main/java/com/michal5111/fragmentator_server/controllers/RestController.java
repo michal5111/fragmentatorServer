@@ -9,7 +9,6 @@ import com.michal5111.fragmentator_server.dto.LineEditDTO;
 import com.michal5111.fragmentator_server.exceptions.LineNotFoundException;
 import com.michal5111.fragmentator_server.exceptions.MovieNotFoundException;
 import com.michal5111.fragmentator_server.exceptions.UnknownSubtitlesTypeException;
-import com.michal5111.fragmentator_server.repositories.LineRepository;
 import com.michal5111.fragmentator_server.repositories.MovieRepository;
 import com.michal5111.fragmentator_server.services.*;
 import lombok.extern.slf4j.Slf4j;
@@ -39,33 +38,25 @@ public class RestController {
 
     private final MovieRepository movieRepository;
 
-    private final LineRepository lineRepository;
-
     private final DatabaseService databaseService;
 
     private final FragmentRequestService fragmentRequestService;
 
     private final LineService lineService;
 
-    private final SearchService searchService;
-
     private final YouTubeDlService youTubeDlService;
 
     private final ModelMapper modelMapper = new ModelMapper();
 
     public RestController(MovieRepository movieRepository,
-                          LineRepository lineRepository,
                           DatabaseService databaseService,
                           FragmentRequestService fragmentRequestService,
                           LineService lineService,
-                          SearchService searchService,
                           YouTubeDlService youTubeDlService) {
         this.movieRepository = movieRepository;
-        this.lineRepository = lineRepository;
         this.databaseService = databaseService;
         this.fragmentRequestService = fragmentRequestService;
         this.lineService = lineService;
-        this.searchService = searchService;
         this.youTubeDlService = youTubeDlService;
     }
 
@@ -102,7 +93,7 @@ public class RestController {
 
     @GetMapping("/lineHints")
     public List<Line> getLinesSQL(@RequestParam("phrase") String phrase) {
-        return lineRepository.findText2(phrase);
+        return lineService.findText2(phrase);
     }
 
     @GetMapping("/movieHints")
@@ -117,7 +108,7 @@ public class RestController {
 
     @GetMapping("/lines")
     public List<Line> getLines(@RequestParam("movieId") Long movieId) {
-        return lineRepository.findAllBySubtitlesMovieId(movieId);
+        return lineService.findAllBySubtitlesMovieId(movieId);
     }
 
     @PutMapping(value = "/index", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -131,7 +122,7 @@ public class RestController {
             @RequestParam("phrase") String phrase,
             @RequestParam(name = "title", required = false) String title,
             Pageable pageable) {
-        return searchService.search(phrase, title, pageable);
+        return lineService.fullTextSearchPhrase(phrase, title, pageable);
     }
 
     @GetMapping("/lineSnapshot")
@@ -173,8 +164,8 @@ public class RestController {
 
     public FragmentRequest convertToEntity(FragmentRequestDTO fragmentRequestDTO) throws LineNotFoundException, MovieNotFoundException {
         Optional<Movie> optionalMovie = movieRepository.findById(fragmentRequestDTO.getMovieId());
-        Optional<Line> optionalStartLine = lineRepository.findById(fragmentRequestDTO.getStartLineId());
-        Optional<Line> optionalStopLine = lineRepository.findById(fragmentRequestDTO.getStopLineId());
+        Optional<Line> optionalStartLine = lineService.findById(fragmentRequestDTO.getStartLineId());
+        Optional<Line> optionalStopLine = lineService.findById(fragmentRequestDTO.getStopLineId());
         if (optionalMovie.isEmpty()) {
             throw new MovieNotFoundException("Movie not found!");
         }
@@ -199,7 +190,7 @@ public class RestController {
     }
 
     public LineEdit convertToEntity(LineEditDTO lineEditDTO) throws LineNotFoundException {
-        Optional<Line> optionalLine = lineRepository.findById(lineEditDTO.getLineId());
+        Optional<Line> optionalLine = lineService.findById(lineEditDTO.getLineId());
         if (optionalLine.isEmpty()) {
             throw new LineNotFoundException("Line not found!");
         }
